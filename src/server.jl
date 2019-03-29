@@ -2,7 +2,7 @@
     update_viewers!(websocket_list)
 
 Send WebSocket message to all viewers (websockets) in the list `wss` to check if they respond,
-delete them from the list otherwise.
+delete them from the list otherwise. Note that writing
 """
 function update_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
     # TODO: nicer way of checking availability of WebSocket
@@ -131,13 +131,13 @@ function ws_tracker(http::HTTP.Stream)
 
     # add to list of html files being "watched"
     filepath = get_file(http.message.target)
-    if filepath == nothing
+    if filepath === nothing
         # should not happen, since WS request comes from just served file...
-        println("!!! WS request from inexistent file at path '$(http.message.target)'!")
-        return nothing
+        throw(ErrorException("WebSocket request from inexistent file at path "*
+                             "'$(http.message.target)'."))
     end
 
-    # if file already watched, add ws to it; otherwise add to dict
+    # if the file is already being watched, add ws to it; otherwise add to dict
     if filepath ∈ keys(WS_HTML_FILES)
         push!(WS_HTML_FILES[filepath], ws)
     else
