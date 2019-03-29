@@ -49,7 +49,7 @@ Kill all file-watching tasks of a `FileWatcher`."
 function stop_tasks!(fw::FileWatcher)
     for (fp, tsk) ∈ fw.watched_files
         if tsk.state == :runnable
-            schedule(tsk, [], error=true) # raise error ∈ the task --> kills it
+            schedule(tsk, [], error=true) # raise error in the task --> kills it
         end
     end
     empty!(fw.watched_files)

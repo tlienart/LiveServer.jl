@@ -41,7 +41,7 @@ function get_file(filepath::AbstractString)
 
     if filepath[end] == '/'
         # have to check for index.html. Assume index has standard `.html` extension.
-        phtml = joinpath(filepath, "index.htm")
+        phtml = joinpath(filepath, "index.html")
         isfile(phtml) && return phtml
         # otherwise return nothing
         return nothing
@@ -163,13 +163,16 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
     # start a filewatcher which, for any file-event, will call `file_changed_callback`
     filewatcher = FileWatcher(file_changed_callback)
 
-    # start a server
-    inetaddr = Sockets.InetAddr(ipaddr, port)
-    server = Sockets.listen(inetaddr)
-    println("✓ LiveServer listening on $ipaddr:$port... (use CTRL+C to shut down)")
-
     # start listening
-    @async HTTP.listen(ipaddr, port; server=server) do http::HTTP.Stream
+    saddr = "http://"
+    if ipaddr == "localhost"
+        saddr *= "localhost"
+        ipaddr = ip"127.0.0.1"
+    else
+        saddr *= "$ipaddr"
+    end
+    println("✓ LiveServer listening on $saddr:$port... (use CTRL+C to shut down)")
+    listener = @async HTTP.listen(ipaddr, port) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade
             ws_tracker(http)
@@ -185,7 +188,8 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
         end
     catch err
         if isa(err, InterruptException)
-            close(server)
+            # NOTE ideally here we would also want to stop the listener. However this is
+            # not as easy as stopping the file watching tasks.
             stop_tasks!(filewatcher)
             empty!(WS_HTML_FILES)
         println("\n✓ LiveServer shut down.")

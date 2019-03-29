@@ -1,8 +1,8 @@
 module LiveServer
 
 using HTTP
-using Sockets
 using FileWatching
+using Sockets
 
 export serve
 
