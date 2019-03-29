@@ -6,8 +6,6 @@ using FileWatching
 
 export serve
 
-const VERBOSE = Ref{Bool}(false)
-
 # the script to be added to HTML files
 const BROWSER_RELOAD_SCRIPT = """
     <!-- browser-reload script, automatically added by the LiveServer.jl -->
