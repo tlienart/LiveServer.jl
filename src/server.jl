@@ -1,14 +1,19 @@
 """
-    update_viewers(wss)
+    update_viewers!(websocket_list)
 
-Send WebSocket message to all viewers in the list `wss`.
+Send WebSocket message to all viewers (websockets) in the list `wss` to check if they respond,
+delete them from the list otherwise.
 """
-function update_viewers(wss::Vector{HTTP.WebSockets.WebSocket})
+function update_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
     # TODO: nicer way of checking availability of WebSocket
     # (instead of just trying to send message and failing...?)
     closed_inds = []
     for (i, wsi) ∈ enumerate(wss)
-        try write(wsi, "update") catch e push!(closed_inds, i) end
+        try
+            write(wsi, "update")
+        catch e
+            push!(closed_inds, i)
+        end
     end
     deleteat!(wss, closed_inds)
 end
@@ -21,18 +26,16 @@ Callback that gets fired once a change to a file `filepath` is detected (FileEve
 function file_changed_callback(filepath::AbstractString, ev::FileWatching.FileEvent)
     # only do something if file was changed ONLY
     if ev.changed && !ev.renamed && !ev.timedout
-        println("File '$filepath' changed...")
-        println("Extension: $(splitext(filepath)[2])")
-
+        VERBOSE.x && println("File '$filepath' changed...")
         if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
             # if html file, update viewers of this file only
             println("HTML file, only updating corresponding viewers...")
-            update_viewers(WS_HTML_FILES[filepath])
+            update_viewers!(WS_HTML_FILES[filepath])
         else
             # otherwise, update all viewers
             println("Infra file, updating all viewers...")
             for wss ∈ values(WS_HTML_FILES)
-                update_viewers(wss)
+                update_viewers!(wss)
             end
         end
     end
@@ -40,18 +43,6 @@ end
 
 # instantiate file watcher
 const LS_FILE_WATCHER = FileWatcher(file_changed_callback)
-
-# the script to be added to HTML files
-const BROWSER_SYNC_SCRIPT = raw"""
-    <!-- browser-syncing script, automatically added by the Julia Live-Server -->
-    <script type="text/javascript">
-      var browser_sync_socket_M3sp9eAgRFN9y = new WebSocket("ws://" + location.host + location.pathname);
-      browser_sync_socket_M3sp9eAgRFN9y.onmessage = function(msg) {
-          browser_sync_socket_M3sp9eAgRFN9y.close();
-          location.reload();
-      };
-    </script>
-    """
 
 """
     get_file(filepath)
@@ -95,12 +86,12 @@ function file_server(req::HTTP.Request)
             if end_of_body_match == nothing
                 # TODO: what to do ∈ this case? (no </body> found)
                 # just add to end of file...?
-                file_string *= BROWSER_SYNC_SCRIPT
+                file_string *= BROWSER_RELOAD_SCRIPT
             else
                 end_of_body = prevind(file_string, end_of_body_match.offset)
                 io = IOBuffer()
                 write(io, file_string[1:end_of_body])
-                write(io, BROWSER_SYNC_SCRIPT)
+                write(io, BROWSER_RELOAD_SCRIPT)
                 write(io, file_string[nextind(file_string, end_of_body):end])
                 file_string = String(take!(io))
             end
@@ -112,9 +103,6 @@ function file_server(req::HTTP.Request)
         return HTTP.Response(200, file_content)
     end
 end
-
-# "List of files being tracked by WebSocket connections"
-const WS_HTML_FILES = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
 
 """
     ws_tracker(http)
@@ -169,18 +157,44 @@ function ws_tracker(http::HTTP.Stream)
 end
 
 """
-    serve()
+    serve(; ipaddr, port, verbose)
 
-Start listening.
+Main function to start a server at `http://ipaddr:port` and render what is in the current folder.
+
+* `ipaddr` is either a string representing a valid IP address (e.g.: `"127.0.0.1"`) or an `IPAddr`
+object (e.g.: `ip"127.0.0.1"`). You can also write `"localhost"` (default).
+* `port` is an integer between 8000 (default) and 9000.
+* `verbose` is a boolean indicating whether to display informations in Julia about the connections
+or not (default).
+
+### Example
+
+```julia
+cd(joinpath(pathof(LiveServer), "example"))
+serve()
+```
+
+If you open a browser to `localhost:8000`, you should see the `index.html` page from the `example`
+folder being rendered.
 """
-function serve()
-    ipaddr = ip"0.0.0.0"
-    port = 8000
+function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000, verbose::Bool=false)
+    if isa(ipaddr, String)
+        if ipaddr == "localhost"
+            ipaddr = ip"0.0.0.0"
+        else
+            ipaddr = parse(IPAddr, ipaddr)
+        end
+    end
+    8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
+    # make the verbosity level available to the whole program
+    VERBOSE.x = verbose
 
+    # start a server
     inetaddr = Sockets.InetAddr(ipaddr, port)
     server = Sockets.listen(inetaddr)
 
-    println("Starting live-server on $ipaddr:$port...")
+    println("✓ LiveServer listening on $ipaddr:$port...")
+
     @async HTTP.listen(ipaddr, port; server=server) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             ws_tracker(http)
@@ -196,9 +210,10 @@ function serve()
         if isa(err, InterruptException)
             close(server)
             stop_tasks(LS_FILE_WATCHER)
-        println("\n✓ server closed gracefully.")
+        println("\n✓ LiveServer shut down.")
         else
             throw(err)
         end
     end
+    return nothing
 end

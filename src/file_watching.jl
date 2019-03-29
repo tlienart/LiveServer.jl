@@ -17,7 +17,7 @@ end
 """
     _file_watcher(filepath, fw)
 
-[INTERNAL] helper function that's called asynchronously to act if a file has changed.
+Helper function that's called asynchronously to act if a file has changed.
 """
 function _file_watcher(filepath::AbstractString, fw::FileWatcher)
     fileevent = watch_file(filepath, -1) # returns upon a change
@@ -52,12 +52,12 @@ end
 """
     stop_tasks(fw)
 
-Kill all file-watching tasks of a `FileWatcher`.
+Kill all file-watching tasks of a `FileWatcher`"
 """
 function stop_tasks(fw::FileWatcher)
     for (fp, tsk) ∈ fw.watched_files
         if tsk.state == :runnable
-            schedule(tsk, [], error=true) # raise error in the task --> kills it
+            schedule(tsk, [], error=true) # raise error ∈ the task --> kills it
         end
     end
     empty!(fw.watched_files)
