@@ -11,9 +11,17 @@ export serve
 const LOGGER = Ref{Bool}(true)
 
 setlogger(b::Bool) = (LOGGER.x = b)
-function info(m::String)
+function info(m::String, actor::Symbol=:none)
     if LOGGER.x
-        print(Crayon(foreground=(205, 145, 242)), "ℹ $m")
+        crayon = Crayon(reset=true)
+        if actor == :client
+            crayon = Crayon(foreground=(226,242,145))
+        elseif actor == :server
+            crayon = Crayon(foreground=(205,145,242))
+        else
+            actor = ""
+        end
+        print(crayon, "ℹ $actor: $m")
         print(Crayon(reset=true), "\n")
     end
 end

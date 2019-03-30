@@ -20,12 +20,15 @@ Callback that gets fired once a change to a file `filepath` is detected (FileEve
 function file_changed_callback(filepath::AbstractString, ev::FileWatching.FileEvent)
     # only do something if file was changed ONLY
     if ev.changed && !ev.renamed && !ev.timedout
-        if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
+        # info("there was a change in file [$fs_filepath]", :server)
+        if splitext(filepath)[2] == ".html"
             # if html file, update viewers of this file only
             filter_available_viewers!(WS_HTML_FILES[filepath])
+            info("pinged all [$(length(WS_HTML_FILES[filepath]))] active websockets attached to [$fs_filepath]", :server)
         else
             # otherwise (e.g. modification to a CSS file), update all viewers
             foreach(filter_available_viewers!, values(WS_HTML_FILES))
+            info("pinged all [$(sum(length, values(WS_HTML_FILES)))] active websockets", :server)
         end
     end
 end
@@ -38,7 +41,6 @@ Get filesystem path to requested file, or `nothing` if the file does not exist.
 function get_file(filepath::AbstractString)
     # TODO: ensure this is ok on windows.
     (filepath[1] == '/') && (filepath = "."*filepath)
-
     if filepath[end] == '/'
         # have to check for index.html. Assume index has standard `.html` extension.
         phtml = joinpath(filepath, "index.html")
@@ -62,31 +64,31 @@ See also [`add_to_filewatcher!`](@ref).
 """
 function file_server!(filewatcher::FileWatcher, req::HTTP.Request)
     fs_filepath = get_file(req.target)
+    fs_filepath === nothing && return HTTP.Response(404, "404 not found")
 
-    if fs_filepath == nothing
-        return HTTP.Response(404, "404 not found")
-    else
-        file_content = read(fs_filepath, String)
-        # if html, add the browser-sync script to it
-        if splitext(fs_filepath)[2] == ".html"
-            end_of_body_match = match(r"</body>", file_content)
-            if end_of_body_match === nothing
-                # TODO: better handling of this case
-                throw(ErrorException("Could not find a closing `</body>` tag before which " *
-                                     "to inject the reloading script."))
-            else
-                end_of_body = prevind(file_content, end_of_body_match.offset)
-                # reconstruct the page with the reloading script
-                io = IOBuffer()
-                write(io, file_content[1:end_of_body])
-                write(io, BROWSER_RELOAD_SCRIPT)
-                write(io, file_content[nextind(file_content, end_of_body):end])
-                file_content = String(take!(io))
-            end
+    info("found the requested page [$fs_filepath]", :server)
+    file_content = read(fs_filepath, String)
+    # if html, add the browser-sync script to it
+    if splitext(fs_filepath)[2] == ".html"
+        end_of_body_match = match(r"</body>", file_content)
+        if end_of_body_match === nothing
+            # no </body> tag found, trying to add the
+            # reload script at the end; this may fail.
+            file_content *= BROWSER_RELOAD_SCRIPT
+        else
+            end_of_body = prevind(file_content, end_of_body_match.offset)
+            # reconstruct the page with the reloading script
+            io = IOBuffer()
+            write(io, file_content[1:end_of_body])
+            write(io, BROWSER_RELOAD_SCRIPT)
+            write(io, file_content[nextind(file_content, end_of_body):end])
+            file_content = String(take!(io))
         end
-        add_to_filewatcher!(filewatcher, fs_filepath)
-        return HTTP.Response(200, file_content)
+        info("injected the browser reload script", :server)
     end
+    add_to_filewatcher!(filewatcher, fs_filepath)
+    info("added file to the file watcher", :server)
+    return HTTP.Response(200, file_content)
 end
 
 """
@@ -127,7 +129,6 @@ function ws_tracker(http::HTTP.Stream)
     else
         WS_HTML_FILES[filepath] = [ws]
     end
-    println("Number of websockets for $filepath: $(length(WS_HTML_FILES[filepath]))")
     return nothing
 end
 
@@ -176,11 +177,11 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000, verb
     println("✓ LiveServer listening on $saddr:$port... (use CTRL+C to shut down)")
     listener = @async HTTP.listen(ipaddr, port) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
-            info("upgrade request")
+            info("upgrade request [$(http.message.target)]", :client)
             # upgrade
             ws_tracker(http)
         else
-            info("$(http.message.method) request [$(http.message.target)]")
+            info("$(http.message.method) request [$(http.message.target)]", :client)
             # request
             HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(filewatcher, req)), http)
         end
