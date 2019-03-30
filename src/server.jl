@@ -43,7 +43,7 @@ function file_changed_callback(filepath::AbstractString, ev::FileWatching.FileEv
             update_and_close_viewers!(WS_HTML_FILES[filepath])
         else
             # otherwise (e.g. modification to a CSS file), update all viewers
-            foreach(filter_available_viewers!, values(WS_HTML_FILES))
+            foreach(update_and_close_viewers!, values(WS_HTML_FILES))
         end
     end
 end
