@@ -192,6 +192,13 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
             # NOTE ideally here we would also want to stop the listener. However this is
             # not as easy as stopping the file watching tasks.
             stop_tasks!(filewatcher)
+
+            for (k,v) ∈ WS_HTML_FILES
+                for (i, vi) ∈ enumerate(v)
+                    println("$k, ws$i: $(vi.io.c.io.status)")
+                end
+            end
+
             empty!(WS_HTML_FILES)
         println("\n✓ LiveServer shut down.")
         else

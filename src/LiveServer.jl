@@ -11,9 +11,10 @@ export serve
 const BROWSER_RELOAD_SCRIPT = """
     <!-- browser-reload script, automatically added by the LiveServer.jl -->
     <script type="text/javascript">
-      var browser_reload_socket_M3sp9eAgRFN9y = new WebSocket("ws://" + location.host + location.pathname);
-      browser_reload_socket_M3sp9eAgRFN9y.onmessage = function(msg) {
-          browser_reload_socket_M3sp9eAgRFN9y.close();
+      var ws_M3sp9eAgRFN9y = new WebSocket("ws://" + location.host + location.pathname);
+      ws_M3sp9eAgRFN9y.onmessage = function(msg) {
+          // ws_M3sp9eAgRFN9y.send(browser.tabs.getCurrent().id)
+          // ws_M3sp9eAgRFN9y.close();
           location.reload();
       };
     </script>

@@ -1,6 +1,6 @@
 name = "LiveServer"
 uuid = "16fef848-5104-11e9-1b77-fb7a48bbb589"
-authors = ["Jonas Asprion <jonas.asprion@gmx.ch","Thibaut Lienart <tlienart@me.com>"]
+authors = ["Jonas Asprion <jonas.asprion@gmx.ch", "Thibaut Lienart <tlienart@me.com>"]
 version = "0.1.0"
 
 [deps]
