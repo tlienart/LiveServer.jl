@@ -176,11 +176,11 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000, verb
     println("✓ LiveServer listening on $saddr:$port... (use CTRL+C to shut down)")
     listener = @async HTTP.listen(ipaddr, port) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
-            # info("upgrade request")
+            info("upgrade request")
             # upgrade
             ws_tracker(http)
         else
-            # info("$(http.message.method) request [$(http.message.target)]")
+            info("$(http.message.method) request [$(http.message.target)]")
             # request
             HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(filewatcher, req)), http)
         end
