@@ -6,7 +6,8 @@ using Sockets
 
 export serve
 
-# the script to be added to HTML files
+# the script to be added to HTML files (NOTE: the random string is there to help make sure this
+# script doesn't clash with other javascripts that may be on the page
 const BROWSER_RELOAD_SCRIPT = """
     <!-- browser-reload script, automatically added by the LiveServer.jl -->
     <script type="text/javascript">

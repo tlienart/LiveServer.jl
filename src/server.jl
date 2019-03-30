@@ -127,6 +127,7 @@ function ws_tracker(http::HTTP.Stream)
     else
         WS_HTML_FILES[filepath] = [ws]
     end
+    println("Number of websockets for $filepath: $(length(WS_HTML_FILES[filepath]))")
     return nothing
 end
 
