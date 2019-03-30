@@ -156,11 +156,7 @@ folder being rendered.
 function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
     # check arguments
     if isa(ipaddr, String)
-        if ipaddr == "localhost"
-            ipaddr = ip"0.0.0.0"
-        else
-            ipaddr = parse(IPAddr, ipaddr)
-        end
+        ipaddr == "localhost" || (ipaddr = parse(IPAddr, ipaddr))
     end
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
