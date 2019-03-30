@@ -150,7 +150,7 @@ serve()
 If you open a browser to `localhost:8000`, you should see the `index.html` page from the `example`
 folder being rendered.
 """
-function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
+function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000, verbose::Bool=false)
     # check arguments
     if isa(ipaddr, String)
         if ipaddr == "localhost"
@@ -160,6 +160,7 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
         end
     end
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
+    setlogger(verbose)
 
     # start a filewatcher which, for any file-event, will call `file_changed_callback`
     filewatcher = FileWatcher(file_changed_callback)
@@ -175,9 +176,11 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
     println("✓ LiveServer listening on $saddr:$port... (use CTRL+C to shut down)")
     listener = @async HTTP.listen(ipaddr, port) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
+            # info("upgrade request")
             # upgrade
             ws_tracker(http)
         else
+            # info("$(http.message.method) request [$(http.message.target)]")
             # request
             HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(filewatcher, req)), http)
         end
@@ -189,16 +192,7 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
         end
     catch err
         if isa(err, InterruptException)
-            # NOTE ideally here we would also want to stop the listener. However this is
-            # not as easy as stopping the file watching tasks.
             stop_tasks!(filewatcher)
-
-            for (k,v) ∈ WS_HTML_FILES
-                for (i, vi) ∈ enumerate(v)
-                    println("$k, ws$i: $(vi.io.c.io.status)")
-                end
-            end
-
             empty!(WS_HTML_FILES)
         println("\n✓ LiveServer shut down.")
         else
