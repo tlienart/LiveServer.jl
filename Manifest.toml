@@ -17,9 +17,6 @@ uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
 deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
-[[FileWatching]]
-uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
-
 [[HTTP]]
 deps = ["Base64", "Dates", "Distributed", "IniFile", "JSON", "MbedTLS", "Sockets", "Test"]
 git-tree-sha1 = "c39c5e3401f2d7bfc089a4a6150c899168aca352"

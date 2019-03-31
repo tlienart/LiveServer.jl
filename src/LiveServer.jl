@@ -1,10 +1,9 @@
 module LiveServer
 
 using HTTP
-using FileWatching
 using Sockets
 
-export serve
+export serve, stop
 
 # the script to be added to HTML files (NOTE: the random string is there to help make sure this
 # script doesn't clash with other javascripts that may be on the page
@@ -13,8 +12,6 @@ const BROWSER_RELOAD_SCRIPT = """
     <script type="text/javascript">
       var ws_M3sp9eAgRFN9y = new WebSocket("ws://" + location.host + location.pathname);
       ws_M3sp9eAgRFN9y.onmessage = function(msg) {
-          // ws_M3sp9eAgRFN9y.send(browser.tabs.getCurrent().id)
-          ws_M3sp9eAgRFN9y.close();
           location.reload();
       };
     </script>
@@ -28,7 +25,7 @@ const BROWSER_RELOAD_SCRIPT = """
     get_fpath(req_target)
 
 Convert a requested target to a filesystem path and returns it provided the file exists. If it
-doesn't, an empty string is returned.
+doesn't, an empty string is returned. See also [`file_server!`](@ref).
 """
 function get_fpath(f_path::AbstractString)
     # TODO: ensure this is ok on windows.
@@ -48,13 +45,13 @@ end
     file_server!(f_watcher, req)
 
 Handler function for serving files. This takes a request for a specific file, finds it and serves
-it via a `Response(200, ...)` after injecting the browser reloading script if it is a HTML file.
+it via a `Response(200, ...)` after appending the browser reloading script if it is a HTML file.
 The file is also added to the `f_watcher` dictionary if it isn't there already.
 """
 function file_server!(f_watcher::Dict{String,Float64}, req::HTTP.Request)
+    # retrieve the file
     f_path = get_fpath(req.target)
     isempty(f_path) && return HTTP.Response(404, "404! File not found or server down.")
-
     f_content = read(f_path, String)
 
     # if html, add the browser-sync script to it
@@ -75,11 +72,9 @@ function file_server!(f_watcher::Dict{String,Float64}, req::HTTP.Request)
     end
 
     # add the file to the file watcher if it isn't there already
-    if f_path ∉ keys(f_watcher)
-        f_watcher[f_path] = mtime(f_path)
-    end
+    f_path ∈ keys(f_watcher) || (f_watcher[f_path] = mtime(f_path))
 
-    # serving the file to the client (browser)
+    # serve the file to the client (browser)
     return HTTP.Response(200, f_content)
 end
 
@@ -90,12 +85,16 @@ end
 """
     ping_viewers!(wss)
 
-Take a list of viewers (each a `WebSocket` associated with a watched file), filter out the viewers
-that are unavailable and ping each of the viewer to trigger an upgrade request.
+Take a list of viewers (each a `WebSocket` associated with a watched file), send a message with
+data "update" and subsequently close the websocket and clear the list of viewers. Upon receiving
+the message, the BROWSER_RELOAD_SCRIPT appended to the webpage(s) will trigger a page reload.
 """
 function ping_viewers!(wss::Vector{HTTP.WebSockets.WebSocket}, ping::Bool=true)
-    filter!(wsi -> wsi.io.c.io.status ∈ (Base.StatusActive, Base.StatusOpen), wss)
-    foreach(wsi -> write(wsi, "ping"), wss)
+    foreach(wss) do wsi
+        write(wsi, "update")
+        close(wsi.io)
+    end
+    empty!(wss)
     return nothing
 end
 
@@ -130,18 +129,56 @@ function handle_upgrade!(ws_tracker, http::HTTP.Stream)
     return nothing
 end
 
+"""
+    watcher!(f_watcher, ws_tracker, server)
+
+Go continuously over the watched files (`f_watcher`) and check if a file was recently changed.
+If so, message the relevant viewers associated with the file (so that a page reload is triggered).
+The watcher is normally stopped with an InterruptException (CTRL+C).
+"""
+function watcher!(f_watcher, ws_tracker, server)
+    try
+        while true
+            # go over the files currently being watched
+            for (f_path, time) ∈ f_watcher
+                # check if the file still exists, if it doesn't remove from f_watcher
+                isfile(f_path) || (delete!(f_watcher, f_path); continue)
+                # retrieve the time of last modification
+                cur_mtime = mtime(f_path)
+                # check how it compares to the previously recorded time, if smaller --> update
+                if f_watcher[f_path] < cur_mtime
+                    # update time of last modif
+                    f_watcher[f_path] = cur_mtime
+                    # trigger browser upgrade as appropriate
+                    if splitext(f_path)[2] == ".html"
+                        ping_viewers!(ws_tracker[f_path])
+                    else
+                        # e.g. css file may be needed by pages watched by any viewer so ping all
+                        foreach(ping_viewers!, values(ws_tracker))
+                    end
+                end
+            end
+            # yield to other tasks (namely to the HTTP listener)
+            sleep(0.1)
+        end
+    catch err
+        handle_error(err, f_watcher, ws_tracker, server)
+    end
+    return nothing
+end
+
 ###
 ### SERVE (main function)
 ###
 
 """
-    serve(; ipaddr, port)
+    serve(; host, port, wait)
 
-Main function to start a server at `http://ipaddr:port` and render what is in the current folder.
+Main function to start a server at `http://host:port` and render what is in the current folder.
 
-* `ipaddr` is either a string representing a valid IP address (e.g.: `"127.0.0.1"`) or an `IPAddr`
-object (e.g.: `ip"127.0.0.1"`). You can also write `"localhost"` (default).
-* `port` is an integer between 8000 (default) and 9000.
+* `host="localhost"` is either a string representing a valid IP address (e.g.: `"127.0.0.1"`) or an
+`IPAddr` object (e.g.: `ip"127.0.0.1"`).
+* `port=8000` is an integer between 8000 and 9000 associated with the port that must be used.
 
 ### Example
 
@@ -153,11 +190,8 @@ serve()
 If you open a browser to `localhost:8000`, you should see the `index.html` page from the `example`
 folder being rendered.
 """
-function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
-    # check arguments
-    if isa(ipaddr, String)
-        ipaddr == "localhost" || (ipaddr = parse(IPAddr, ipaddr))
-    end
+function serve(; port::Int=8000)
+    # check port
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
     # initiate a watcher: a dictionary which to each "watched file" associates a time of last
@@ -168,60 +202,60 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
     # websockets corresponding to each of those viewers.
     ws_tracker = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
 
+    # initiate a server
+    server = Sockets.listen(port)
+
     # start listening
-    saddr = "http://"
-    if ipaddr == "localhost"
-        saddr *= "localhost"
-        ipaddr = ip"127.0.0.1"
-    else
-        saddr *= "$ipaddr"
-    end
-    println("✓ LiveServer listening on $saddr:$port... (use CTRL+C to shut down)")
-    @async HTTP.listen(ipaddr, port) do http::HTTP.Stream
-        if HTTP.WebSockets.is_upgrade(http.message)
-            handle_upgrade!(ws_tracker, http)
-        else
-            # request
-            HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(f_watcher, req)), http)
+    println("✓ LiveServer listening on http://localhost:$port... (use CTRL+C to shut down)")
+    @async begin
+        try
+            HTTP.listen(ip"127.0.0.1", port; server=server, readtimeout=0) do http::HTTP.Stream
+                if HTTP.WebSockets.is_upgrade(http.message)
+                    handle_upgrade!(ws_tracker, http)
+                else
+                    # request
+                    HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(f_watcher, req)), http)
+                end
+            end
+        catch err
+            handle_error(err, server, f_watcher, ws_tracker)
         end
     end
 
-    # wait until user issues a CTRL+C command.
-    try while true
-        # go over the files currently being watched
-        for (f_path, time) ∈ f_watcher
-            # check if the file still exists, if it doesn't remove from f_watcher
-            isfile(f_path) || (delete!(f_watcher, f_path); continue)
-            # retrieve the time of last modification
-            cur_mtime = mtime(f_path)
-            # check how it compares to the previously recorded time, if smaller --> update
-            if f_watcher[f_path] < cur_mtime
-                # update time of last modif
-                f_watcher[f_path] = cur_mtime
-                # trigger browser upgrade as appropriate
-                if splitext(f_path)[2] == ".html"
-                    ping_viewers!(ws_tracker[f_path])
-                else
-                    # e.g. css file may be needed by pages watched by any viewer so ping all
-                    foreach(ping_viewers!, values(ws_tracker))
-                end
+    # launch the file watching loop
+    watcher!(f_watcher, ws_tracker, server)
+
+    return nothing
+end
+
+###
+### HANDLE ERROR
+###
+
+"""
+    handle_error(err, f_watcher, ws_tracker)
+
+Helper function to handle an error thrown in the [`serve`](@ref) function. If it is an
+InterruptException (user pressed CTRL+C), clean up and end  program. Otherwise re-throw the error.
+"""
+function handle_error(err, f_watcher, ws_tracker, server)
+    if isa(err, InterruptException)
+        print("\n✓ LiveServer shutting down...")
+        # try to close any remaining websocket
+        for wss ∈ values(ws_tracker)
+            for wsi ∈ wss
+                close(wsi.io)
             end
         end
-        # allows to yield to the HTTP listener and also to not go crazy with the file checking
-        sleep(0.1)
-        end
-    catch err
-        if isa(err, InterruptException)
-            # stop_watching!(f_watcher)
-            empty!(f_watcher)
-            empty!(ws_tracker)
-        println("\n✓ LiveServer shut down.")
-        else
-            throw(err)
-        end
+        # empty tracking dictionaries
+        empty!.((f_watcher, ws_tracker))
+        # close the server (will stop HTTP listen)
+        close(server)
+        println("")
+    else
+        throw(err)
     end
     return nothing
 end
 
-
-end
+end # module
