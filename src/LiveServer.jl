@@ -17,9 +17,6 @@ const BROWSER_RELOAD_SCRIPT = """
     </script>
     """
 
-const TASKS = Dict{Symbol,Task}()
-const ISHANDLED = Ref{Bool}(false)
-
 ###
 ### FILE HANDLING & RESPONSE
 ###
@@ -210,7 +207,7 @@ function serve(; port::Int=8000)
 
     # start listening
     println("✓ LiveServer listening on http://localhost:$port... (use CTRL+C to shut down)")
-    TASKS[:listener] = @async begin
+    @async begin
         HTTP.listen(ip"127.0.0.1", port; server=server, readtimeout=0) do http::HTTP.Stream
             if server.status != 4
                 return 0
