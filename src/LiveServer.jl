@@ -12,8 +12,10 @@ const BROWSER_RELOAD_SCRIPT = """
     <script type="text/javascript">
       var browser_reload_socket_M3sp9eAgRFN9y = new WebSocket("ws://" + location.host + location.pathname);
       browser_reload_socket_M3sp9eAgRFN9y.onmessage = function(msg) {
-          browser_reload_socket_M3sp9eAgRFN9y.close();
-          location.reload();
+          if(msg.data === "update"){
+              browser_reload_socket_M3sp9eAgRFN9y.close();
+              location.reload();
+          }
       };
     </script>
     """

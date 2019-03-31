@@ -2,12 +2,30 @@
     filter_available_viewers!(wss, ping)
 
 Take a list of viewers (each a `WebSocket` associated with a watched file), filter out the viewers
-that are unavailable and if `ping` is set to `true`, ping each of the viewer to trigger an upgrade
-request.
+that are unavailable and if `ping` is set to `true`, ping each of the viewers (message with
+data "ping").
 """
 function filter_available_viewers!(wss::Vector{HTTP.WebSockets.WebSocket}, ping::Bool=true)
     filter!(wsi -> wsi.io.c.io.status ∈ (Base.StatusActive, Base.StatusOpen), wss)
     ping && foreach(wsi -> write(wsi, "ping"), wss)
+    return nothing
+end
+
+
+"""
+    update_and_close_viewers!(wss)
+
+Take a list of viewers (each a `WebSocket` associated with a watched file),
+send a message with data "update" to each of them (to trigger a page reload),
+then close the connection. Finally, empty the list since all connections are
+closing anyway and clients will re-connect from the re-loaded page.
+"""
+function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
+    foreach(wss) do wsi
+        write(wsi, "update")
+        close(wsi.io)
+    end
+    empty!(wss)
     return nothing
 end
 
@@ -22,10 +40,10 @@ function file_changed_callback(filepath::AbstractString, ev::FileWatching.FileEv
     if ev.changed && !ev.renamed && !ev.timedout
         if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
             # if html file, update viewers of this file only
-            filter_available_viewers!(WS_HTML_FILES[filepath])
+            update_and_close_viewers!(WS_HTML_FILES[filepath])
         else
             # otherwise (e.g. modification to a CSS file), update all viewers
-            foreach(filter_available_viewers!, values(WS_HTML_FILES))
+            foreach(update_and_close_viewers!, values(WS_HTML_FILES))
         end
     end
 end
