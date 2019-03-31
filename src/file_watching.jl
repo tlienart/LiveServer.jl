@@ -1,56 +1,105 @@
-"""
-    FileWatcher
+"A watched file; construct with its path as single argument"
+mutable struct WatchedFile
+    path::String
+    mtime::Float64
+    WatchedFile(path::String) = new(path, mtime(path))
+end
 
-Contains a list of watched files and a callback function that should be applied in the case of file
-events.
+"Check if a `WatchedFile` has changed"
+has_changed(wf::WatchedFile) = mtime(wf.path) > wf.mtime
+
+"Set the current state of a `WatchedFile` as unchanged"
+set_unchanged!(wf::WatchedFile) = wf.mtime = mtime(wf.path)
+
 """
-struct FileWatcher
-    watched_files::Dict{String,Task}
-    callback::Function
-    FileWatcher(cb::Function) = new(Dict{String,Task}(), cb)
+    SimpleWatcher(;sleeptime::Float64=0.1)
+
+A simple file watcher. Has two channels that may be used once watching was
+started with `start()`:
+
+- `newfile_channel`: pass paths (String) to files that should be watched as well
+- `filechange_channel` listen on this channel to get paths (String) of files that changed
+
+The `sleeptime` is the time waited between to runs of the loop looking for
+changed files. Both channels have length 1 (i.e. no queue); this simplifies implementation and
+since the operations triggered by the messages are short (esp. shorter than
+the usual frequency of messages) do not greatly impair performance.
+
+You can stop the watcher (i.e. his two tasks) by closing the `newfile_channel`,
+or use the commodity function `stop()` doing exactly this.
+"""
+struct SimpleWatcher
+    newfile_channel::Channel{String}
+    filechange_channel::Channel{String}
+    filelist::Vector{WatchedFile}
+    sleeptime::Float64
+
+    function SimpleWatcher(;sleeptime::Float64=0.1)
+        new(Channel{String}(1), Channel{String}(1), Vector{WatchedFile}(), sleeptime)
+    end
 end
 
 """
-    _file_watcher(filepath, fw)
+    is_file_watched(w::SimpleWatcher, path::String)
 
-Helper function that's called asynchronously to act if a file has changed.
-See also [`add_to_filewatcher`](@ref).
+Checks whether a file is already being watched by `w`.
 """
-function _file_watcher(filepath::AbstractString, fw::FileWatcher)
-    fileevent = watch_file(filepath, -1) # returns upon a change
-    # if file changed, start new task on this file (s.t. it is still being watched)
-    if !fileevent.renamed && !fileevent.timedout
-        fw.watched_files[filepath] = @async _file_watcher(filepath, fw)
-    else
-        # if renamed or timed out, remove from list of watched files
-        delete!(fw.watched_files, filepath)
+is_file_watched(w::SimpleWatcher, path::String) = path ∈ [wf.path for wf ∈ w.filelist]
+
+"[INTERNAL] Wait on `newfile_channel`, add file to watched files `filelist`"
+function wait_for_files(w::SimpleWatcher)
+    while true
+        try wait(w.newfile_channel) catch _ break end # stop if channel closed
+        msg = take!(w.newfile_channel)
+        isfile(msg) && !is_file_watched(w, msg) && push!(w.filelist, WatchedFile(msg))
     end
-    # fire user-specified callback
-    fw.callback(filepath, fileevent)
+    println("ℹ [SimpleWatcher]: \"wait_for_files\" task ending")
+    return nothing
 end
 
-"""
-    add_to_filewatcher!(filewatcher, filepath)
+"[INTERNAL] File-watcher loop, putting messages to `filechange_channel` upon changes"
+function watch_files(w::SimpleWatcher)
+    while true
+        # check if newfile_channel still open, otherwise terminate task
+        # (which will also close filechange_channel)
+        !isopen(w.newfile_channel) && break
 
-Adds `filepath` to the FileWatcher `filewatcher` provided it is not already being watched.
-"""
-function add_to_filewatcher!(fw::FileWatcher, filepath::AbstractString)
-    if filepath ∉ keys(fw.watched_files)
-        fw.watched_files[filepath] = @async _file_watcher(filepath, fw)
+        # check for changes on files
+        foreach(w.filelist) do wf
+            if has_changed(wf)
+                set_unchanged!(wf)
+                put!(w.filechange_channel, wf.path)
+            end
+        end
+
+        sleep(w.sleeptime)
     end
+    println("ℹ [SimpleWatcher]: \"watch_files\" task ending")
     return nothing
 end
 
 """
-    stop_tasks!(filewatcher)
+    start(w::SimpleWatcher)
 
-Kill all file-watching tasks of a `FileWatcher`."
+Start the file watcher. Spawns two coroutines to which the handles are
+returned.
 """
-function stop_tasks!(fw::FileWatcher)
-    for (fp, tsk) ∈ fw.watched_files
-        if tsk.state == :runnable
-            schedule(tsk, [], error=true) # raise error in the task --> kills it
-        end
-    end
-    empty!(fw.watched_files)
+function start(w::SimpleWatcher)
+    # start task waiting for new files to be watched, bind life of channel to it
+    # --> message -1 will terminate task and close this channel
+    wff_task = @async wait_for_files(w)
+    bind(w.newfile_channel, wff_task)
+
+    # start task watching files, bind life of channel to it
+    wf_task = @async watch_files(w)
+    bind(w.filechange_channel, wf_task)
+
+    return (wff_task, wf_task)
 end
+
+"""
+    stop(w::SimpleWatcher)
+
+Stop the watcher (i.e. its two async tasks).
+"""
+stop(w::SimpleWatcher) = close(w.newfile_channel)

@@ -31,13 +31,20 @@ end
 
 
 """
-    file_changed_callback(filepath, ev)
+    file_changed_callback!(ch)
 
-Callback that gets fired once a change to a file `filepath` is detected (FileEvent `ev`).
+Function to be invoked asynchronically, handles file-change messages sent
+through channel `ch` (which is a `Channel{String}`). The function
+returns when the channel closes.
 """
-function file_changed_callback(filepath::AbstractString, ev::FileWatching.FileEvent)
-    # only do something if file was changed ONLY
-    if ev.changed && !ev.renamed && !ev.timedout
+function file_changed_function!(ch::Channel{String})
+    while true
+        !isopen(ch) && break # if channel closed, don't wait again
+        try wait(ch) catch _ break end # wait throws error when channel closes
+
+        filepath = take!(ch)
+        println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
+
         if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
             # if html file, update viewers of this file only
             update_and_close_viewers!(WS_HTML_FILES[filepath])
@@ -46,7 +53,10 @@ function file_changed_callback(filepath::AbstractString, ev::FileWatching.FileEv
             foreach(update_and_close_viewers!, values(WS_HTML_FILES))
         end
     end
+    println("ℹ [LiveUpdater]: \"file_changed_function!\" task ending")
+    return nothing
 end
+
 
 """
     get_file(filepath)
@@ -69,16 +79,17 @@ function get_file(filepath::AbstractString)
 end
 
 """
-    file_server!(req, filewatcher)
+    file_server!(ch, req)
 
-Handler function for serving files. This takes a request (e.g. a path entered in a tab of the
+Handler function for serving files. This takes a channel (of type `Channel{String}`)
+to add files to the file watcher, and a request (e.g. a path entered in a tab of the
 browser), and converts it to the appropriate file system path. If the path corresponds to a HTML
 file, it will inject the reloading script (see [`BROWSER_RELOAD_SCRIPT`](@ref)) at the end of it.
-All files will then be added to the `filewatcher` (if they are not already being watched).
+All files will then be added to the file watcher, which is responsible
+to check whether they're already watched or not.
 Finally the file will be served via a 200 (successful) response.
-See also [`add_to_filewatcher!`](@ref).
 """
-function file_server!(filewatcher::FileWatcher, req::HTTP.Request)
+function file_server!(ch::Channel{String}, req::HTTP.Request)
     fs_filepath = get_file(req.target)
 
     if fs_filepath == nothing
@@ -102,7 +113,9 @@ function file_server!(filewatcher::FileWatcher, req::HTTP.Request)
                 file_content = String(take!(io))
             end
         end
-        add_to_filewatcher!(filewatcher, fs_filepath)
+
+        # write file to channel (-> notify file watcher of this file)
+        put!(ch, fs_filepath)
         return HTTP.Response(200, file_content)
     end
 end
@@ -149,10 +162,11 @@ function ws_tracker(http::HTTP.Stream)
 end
 
 """
-    serve(; ipaddr, port)
+    serve(filewatcher=SimpleWatcher(); ipaddr, port)
 
 Main function to start a server at `http://ipaddr:port` and render what is in the current folder.
 
+* `filewatcher` is a file watcher with an API to be described in detail.
 * `ipaddr` is either a string representing a valid IP address (e.g.: `"127.0.0.1"`) or an `IPAddr`
 object (e.g.: `ip"127.0.0.1"`). You can also write `"localhost"` (default).
 * `port` is an integer between 8000 (default) and 9000.
@@ -167,7 +181,7 @@ serve()
 If you open a browser to `localhost:8000`, you should see the `index.html` page from the `example`
 folder being rendered.
 """
-function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
+function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
     # check arguments
     if isa(ipaddr, String)
         if ipaddr == "localhost"
@@ -179,7 +193,11 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
     # start a filewatcher which, for any file-event, will call `file_changed_callback`
-    filewatcher = FileWatcher(file_changed_callback)
+    # filewatcher = FileWatcher(file_changed_callback)
+
+    # start the file watcher and the file-change handler task
+    wff_task, wf_task = start(filewatcher)
+    fch_task = @async file_changed_function!(filewatcher.filechange_channel)
 
     # start listening
     saddr = "http://"
@@ -189,14 +207,16 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
     else
         saddr *= "$ipaddr"
     end
+
+    server = Sockets.listen(port)
     println("✓ LiveServer listening on $saddr:$port... (use CTRL+C to shut down)")
-    listener = @async HTTP.listen(ipaddr, port) do http::HTTP.Stream
+    @async HTTP.listen(ipaddr, server=server) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
-            # upgrade
+            # upgrade to websocket
             ws_tracker(http)
         else
-            # request
-            HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(filewatcher, req)), http)
+            # directly handle HTTP request
+            HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(filewatcher.newfile_channel, req)), http)
         end
     end
 
@@ -206,11 +226,27 @@ function serve(; ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
         end
     catch err
         if isa(err, InterruptException)
-            # NOTE ideally here we would also want to stop the listener. However this is
-            # not as easy as stopping the file watching tasks.
-            stop_tasks!(filewatcher)
+            println("\n⋮ waiting for everything to shut down")
+
+            # stop the file watcher
+            stop(filewatcher) # stops tasks wff, wf, fch by chain reaction
+
+            # close all websockets
+            for wss ∈ values(WS_HTML_FILES)
+                foreach(wsi -> close(wsi.io), wss)
+            end
             empty!(WS_HTML_FILES)
-        println("\n✓ LiveServer shut down.")
+
+            # shut down server
+            close(server)
+
+            # wait until everything is actually down
+            while (server.status != 6) && !mapreduce(tsk -> tsk.state==:done, &, [wff_task, wf_task, fch_task])
+                sleep(0.05)
+            end
+            sleep(0.2) # make sure that all output from tasks has been printed
+
+            println("\n✓ LiveServer shut down.")
         else
             throw(err)
         end
