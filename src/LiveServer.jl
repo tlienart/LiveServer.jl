@@ -17,6 +17,9 @@ const BROWSER_RELOAD_SCRIPT = """
     </script>
     """
 
+const TASKS = Dict{Symbol,Task}()
+const ISHANDLED = Ref{Bool}(false)
+
 ###
 ### FILE HANDLING & RESPONSE
 ###
@@ -83,13 +86,13 @@ end
 ###
 
 """
-    ping_viewers!(wss)
+    message_viewers!(wss)
 
 Take a list of viewers (each a `WebSocket` associated with a watched file), send a message with
 data "update" and subsequently close the websocket and clear the list of viewers. Upon receiving
 the message, the BROWSER_RELOAD_SCRIPT appended to the webpage(s) will trigger a page reload.
 """
-function ping_viewers!(wss::Vector{HTTP.WebSockets.WebSocket}, ping::Bool=true)
+function message_viewers!(wss::Vector{HTTP.WebSockets.WebSocket}, ping::Bool=true)
     foreach(wss) do wsi
         write(wsi, "update")
         close(wsi.io)
@@ -151,10 +154,10 @@ function watcher!(f_watcher, ws_tracker, server)
                     f_watcher[f_path] = cur_mtime
                     # trigger browser upgrade as appropriate
                     if splitext(f_path)[2] == ".html"
-                        ping_viewers!(ws_tracker[f_path])
+                        message_viewers!(ws_tracker[f_path])
                     else
                         # e.g. css file may be needed by pages watched by any viewer so ping all
-                        foreach(ping_viewers!, values(ws_tracker))
+                        foreach(message_viewers!, values(ws_tracker))
                     end
                 end
             end
@@ -207,18 +210,16 @@ function serve(; port::Int=8000)
 
     # start listening
     println("✓ LiveServer listening on http://localhost:$port... (use CTRL+C to shut down)")
-    @async begin
-        try
-            HTTP.listen(ip"127.0.0.1", port; server=server, readtimeout=0) do http::HTTP.Stream
-                if HTTP.WebSockets.is_upgrade(http.message)
-                    handle_upgrade!(ws_tracker, http)
-                else
-                    # request
-                    HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(f_watcher, req)), http)
-                end
+    TASKS[:listener] = @async begin
+        HTTP.listen(ip"127.0.0.1", port; server=server, readtimeout=0) do http::HTTP.Stream
+            if server.status != 4
+                return 0
             end
-        catch err
-            handle_error(err, server, f_watcher, ws_tracker)
+            if HTTP.WebSockets.is_upgrade(http.message)
+                handle_upgrade!(ws_tracker, http)
+            else
+                HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(f_watcher, req)), http)
+            end
         end
     end
 
@@ -249,7 +250,7 @@ function handle_error(err, f_watcher, ws_tracker, server)
         end
         # empty tracking dictionaries
         empty!.((f_watcher, ws_tracker))
-        # close the server (will stop HTTP listen)
+        # close the server
         close(server)
         println("")
     else
