@@ -1,18 +1,4 @@
 """
-    filter_available_viewers!(wss, ping)
-
-Take a list of viewers (each a `WebSocket` associated with a watched file), filter out the viewers
-that are unavailable and if `ping` is set to `true`, ping each of the viewers (message with
-data "ping").
-"""
-function filter_available_viewers!(wss::Vector{HTTP.WebSockets.WebSocket}, ping::Bool=true)
-    filter!(wsi -> wsi.io.c.io.status ∈ (Base.StatusActive, Base.StatusOpen), wss)
-    ping && foreach(wsi -> write(wsi, "ping"), wss)
-    return nothing
-end
-
-
-"""
     update_and_close_viewers!(wss)
 
 Take a list of viewers (each a `WebSocket` associated with a watched file),
@@ -31,30 +17,19 @@ end
 
 
 """
-    file_changed_callback!(ch)
+    file_changed_callback(filepath::String)
 
-Function to be invoked asynchronically, handles file-change messages sent
-through channel `ch` (which is a `Channel{String}`). The function
-returns when the channel closes.
+Function reacting to the change of files.
 """
-function file_changed_function!(ch::Channel{String})
-    while true
-        !isopen(ch) && break # if channel closed, don't wait again
-        try wait(ch) catch _ break end # wait throws error when channel closes
-
-        filepath = take!(ch)
-        println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
-
-        if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
-            # if html file, update viewers of this file only
-            update_and_close_viewers!(WS_HTML_FILES[filepath])
-        else
-            # otherwise (e.g. modification to a CSS file), update all viewers
-            foreach(update_and_close_viewers!, values(WS_HTML_FILES))
-        end
+function file_changed_callback(filepath::String)
+    println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
+    if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
+        # if html file, update viewers of this file only
+        update_and_close_viewers!(WS_HTML_FILES[filepath])
+    else
+        # otherwise (e.g. modification to a CSS file), update all viewers
+        foreach(update_and_close_viewers!, values(WS_HTML_FILES))
     end
-    println("ℹ [LiveUpdater]: \"file_changed_function!\" task ending")
-    return nothing
 end
 
 
@@ -79,17 +54,17 @@ function get_file(filepath::AbstractString)
 end
 
 """
-    file_server!(ch, req)
+    serve_file(fw, req)
 
-Handler function for serving files. This takes a channel (of type `Channel{String}`)
-to add files to the file watcher, and a request (e.g. a path entered in a tab of the
+Handler function for serving files. This takes a file watcher, to which
+files to be watched can be added, and a request (e.g. a path entered in a tab of the
 browser), and converts it to the appropriate file system path. If the path corresponds to a HTML
 file, it will inject the reloading script (see [`BROWSER_RELOAD_SCRIPT`](@ref)) at the end of it.
 All files will then be added to the file watcher, which is responsible
 to check whether they're already watched or not.
 Finally the file will be served via a 200 (successful) response.
 """
-function file_server!(ch::Channel{String}, req::HTTP.Request)
+function serve_file(fw, req::HTTP.Request)
     fs_filepath = get_file(req.target)
 
     if fs_filepath == nothing
@@ -114,8 +89,8 @@ function file_server!(ch::Channel{String}, req::HTTP.Request)
             end
         end
 
-        # write file to channel (-> notify file watcher of this file)
-        put!(ch, fs_filepath)
+        # add this file to the file watcher, send content to client
+        watch_file(fw, fs_filepath)
         return HTTP.Response(200, file_content)
     end
 end
@@ -192,12 +167,12 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="local
     end
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
-    # start a filewatcher which, for any file-event, will call `file_changed_callback`
-    # filewatcher = FileWatcher(file_changed_callback)
+    # set the callback and start the file watcher
+    set_callback(filewatcher, file_changed_callback)
+    start(filewatcher)
 
-    # start the file watcher and the file-change handler task
-    wff_task, wf_task = start(filewatcher)
-    fch_task = @async file_changed_function!(filewatcher.filechange_channel)
+    # make request handler
+    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(filewatcher, req))
 
     # start listening
     saddr = "http://"
@@ -216,7 +191,7 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="local
             ws_tracker(http)
         else
             # directly handle HTTP request
-            HTTP.handle(HTTP.RequestHandlerFunction(req->file_server!(filewatcher.newfile_channel, req)), http)
+            HTTP.handle(req_handler, http)
         end
     end
 
@@ -229,7 +204,7 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="local
             println("\n⋮ waiting for everything to shut down")
 
             # stop the file watcher
-            stop(filewatcher) # stops tasks wff, wf, fch by chain reaction
+            stop(filewatcher)
 
             # close all websockets
             for wss ∈ values(WS_HTML_FILES)
@@ -239,12 +214,7 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="local
 
             # shut down server
             close(server)
-
-            # wait until everything is actually down
-            while (server.status != 6) && !mapreduce(tsk -> tsk.state==:done, &, [wff_task, wf_task, fch_task])
-                sleep(0.05)
-            end
-            sleep(0.2) # make sure that all output from tasks has been printed
+            while (server.status != 6) sleep(0.05) end
 
             println("\n✓ LiveServer shut down.")
         else
