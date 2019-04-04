@@ -96,7 +96,7 @@ function serve_file(fw, req::HTTP.Request)
         end
 
         # add this file to the file watcher, send content to client
-        watch_file(fw, fs_filepath)
+        watch_file!(fw, fs_filepath)
         return HTTP.Response(200, file_content)
     end
 end
@@ -156,7 +156,7 @@ Main function to start a server at `http://ipaddr:port` and render what is in th
 object (e.g.: `ip"127.0.0.1"`). You can also write `"localhost"` (default).
 * `port` is an integer between 8000 (default) and 9000.
 
-### Example
+# Example
 
 ```julia
 cd(joinpath(pathof(LiveServer), "example"))
@@ -179,7 +179,7 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String,IPAddr}="localh
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
     # set the callback and start the file watcher
-    set_callback(filewatcher, file_changed_callback)
+    set_callback!(filewatcher, file_changed_callback)
     start(filewatcher)
 
     # make request handler

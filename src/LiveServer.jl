@@ -11,7 +11,7 @@ module LiveServer
 using HTTP
 using Sockets
 
-export serve, SimpleWatcher, start, stop, set_callback, watch_file
+export serve, SimpleWatcher, start, stop, set_callback!, watch_file!
 
 # the script to be added to HTML files
 const BROWSER_RELOAD_SCRIPT = """

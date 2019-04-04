@@ -50,9 +50,9 @@ be overloaded by external file watchers and exported by default:
 
 - `start(w)`: start the watcher
 - `stop(w)`: stop the watcher; preserves the list of watched files and new files
-   can still be added using `watch_file`
-- `set_callback(w, callback::Function)`: set callback to be executed upon file changes
-- `watch_file(w, filepath::AbstractString)`: add file to be watched
+   can still be added using `watch_file!`
+- `set_callback!(w, callback::Function)`: set callback to be executed upon file changes
+- `watch_file!(w, filepath::AbstractString)`: add file to be watched
 
 Further API functions (probably never used in a normal use case), not
 exported by default:
@@ -60,14 +60,14 @@ exported by default:
 - `isrunning(w)`: check whether the watcher is running
 - `is_file_watched(w, filepath::AbstractString)`: check whether a file is being watched
 
-### Examples
+# Examples
 ```julia
 using LiveServer
 
 # create a file, instantiate file watcher, add the file to be watched
 write("textfile.txt", "A text file.")
 w = SimpleWatcher(f -> println("File changed: \$f"))
-watch_file(w, "textfile.txt")
+watch_file!(w, "textfile.txt")
 
 # start the watcher, change the file
 start(w)
@@ -75,13 +75,13 @@ write("textfile.txt", "Changed text file.")
 sleep(0.15) # make sure a file-check runs before changing callback
 
 # change the callback function, change the file again, sstop the watcher
-set_callback(w, f -> println("Changed: \$f"))
+set_callback!(w, f -> println("Changed: \$f"))
 write("textfile.txt", "Second-time changed text file.")
 sleep(0.15)
 stop(w)
 
 # watcher does not add files that do not exist
-watch_file(w, "this_file_does_not_exist_at.all")
+watch_file!(w, "this_file_does_not_exist_at.all")
 
 # let's remove the watched file and see if the watcher notices
 rm("textfile.txt")
@@ -110,13 +110,13 @@ end
 
 
 """
-    _file_watcher(w::SimpleWatcher)
+    _file_watcher!(w::SimpleWatcher)
 
-[INTERNAL] Helper function that's spawned as an asynchronous task which
+Helper function that's spawned as an asynchronous task which
 checks for changed files. Terminates normally upon an `InterruptException`,
 and with a warning for all other exceptions.
 """
-function _file_watcher(w::SimpleWatcher)
+function _file_watcher!(w::SimpleWatcher)
     try
         while true
             # only check files if there's a callback to call upon changes
@@ -148,7 +148,7 @@ end
 """
     _waitfor_task_shutdown(w::SimpleWatcher)
 
-[INTERNAL] Helper function ensuring that the `_file_watcher` task has ended
+Helper function ensuring that the `_file_watcher!` task has ended
 before continuing.
 """
 function _waitfor_task_shutdown(w::SimpleWatcher)
@@ -159,14 +159,14 @@ end
 
 
 """
-    set_callback(w::SimpleWatcher, callback::Function)
+    set_callback!(w::SimpleWatcher, callback::Function)
 
 Mandatory API function to set or change the callback function being executed upon a
 file change. Can be "hot-swapped", i.e. while the file watcher is running.
 The callback function receives an `AbstractString` with the file path and is not
 expected to return anything.
 """
-function set_callback(w::SimpleWatcher, callback::Function)
+function set_callback!(w::SimpleWatcher, callback::Function)
     prev_running = stop(w) # returns true if was running
     w.callback = callback
     prev_running && start(w) # start again if it was running before
@@ -189,7 +189,7 @@ isrunning(w::SimpleWatcher) = (w.task != nothing) && !istaskdone(w.task)
 Mandatory API function to start the file watcher.
 """
 function start(w::SimpleWatcher)
-    !isrunning(w) && (w.task = @async _file_watcher(w))
+    !isrunning(w) && (w.task = @async _file_watcher!(w))
     # wait until task runs to ensure reliable start (e.g. if `stop` called right afterwards)
     while w.task.state != :runnable
         sleep(0.001)
@@ -201,7 +201,7 @@ end
     stop(w::SimpleWatcher)
 
 Mandatory API function to stop the file watcher. The list of files being watched is
-preserved. Also, it still accepts new files to be watched by `watch_file`.
+preserved. Also, it still accepts new files to be watched by `watch_file!`.
 Once restarted with `start`, it continues watching the files in the list
 (and will initially trigger the callback for all files that have changed
 in the meantime). Returns a `Bool` indicating whether the watcher was
@@ -226,11 +226,11 @@ is_file_watched(w::SimpleWatcher, filepath::AbstractString) = any(wf -> wf.filep
 
 
 """
-    watch_file(w::SimpleWatcher, filepath::AbstractString)
+    watch_file!(w::SimpleWatcher, filepath::AbstractString)
 
 Mandatory API function to add a file to be watched for changes.
 """
-function watch_file(w::SimpleWatcher, filepath::AbstractString)
+function watch_file!(w::SimpleWatcher, filepath::AbstractString)
     if isfile(filepath) && !is_file_watched(w, filepath)
         push!(w.filelist, WatchedFile(filepath))
         println("ℹ [SimpleWatcher]: now watching '$filepath'")
