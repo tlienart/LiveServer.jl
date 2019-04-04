@@ -17,6 +17,7 @@ write(file2, ".")
 
     # Check if changed
     t1 = time()
+    sleep(0.01)
     write(file1, "hello")
     @test LS.has_changed(wf1)
     @test !LS.has_changed(wf2)
@@ -66,7 +67,8 @@ end
 
     LS.start(sw)
     @test LS.isrunning(sw)
+
+    # XXX
     @test_broken LS.stop(sw)
     @test_broken !LS.isrunning(sw)
-
 end
