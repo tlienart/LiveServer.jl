@@ -1,7 +1,7 @@
 """
-    update_and_close_viewers!(wss)
+    update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
 
-Take a list of viewers (each a `WebSocket` associated with a watched file),
+Take a list of viewers, i.e. WebSocket connections from a client,
 send a message with data "update" to each of them (to trigger a page reload),
 then close the connection. Finally, empty the list since all connections are
 closing anyway and clients will re-connect from the re-loaded page.
@@ -17,9 +17,10 @@ end
 
 
 """
-    file_changed_callback(filepath::String)
+    file_changed_callback(filepath::AbstractString)
 
-Function reacting to the change of files.
+Function reacting to the change of files. Is set as callback for the
+file watcher.
 """
 function file_changed_callback(filepath::AbstractString)
     println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
@@ -34,12 +35,14 @@ end
 
 
 """
-    get_file(filepath)
+    get_file(filepath::AbstractString)
 
 Get filesystem path to requested file, or `nothing` if the file does not exist.
 """
 function get_file(filepath::AbstractString)
-    # TODO: ensure this is ok on windows.
+    # TODO: use HTTP.URI stuff to ensure portability. URI targets always come
+    #       with forward slashes, which is OK for Linux-based systems but not
+    #       for Windows...
     (filepath[1] == '/') && (filepath = "."*filepath)
 
     if filepath[end] == '/'
@@ -53,16 +56,19 @@ function get_file(filepath::AbstractString)
     end
 end
 
+
 """
-    serve_file(fw, req)
+    serve_file(fw, req::HTTP.Request)
 
 Handler function for serving files. This takes a file watcher, to which
 files to be watched can be added, and a request (e.g. a path entered in a tab of the
 browser), and converts it to the appropriate file system path. If the path corresponds to a HTML
-file, it will inject the reloading script (see [`BROWSER_RELOAD_SCRIPT`](@ref)) at the end of it.
-All files will then be added to the file watcher, which is responsible
+file, it will inject the reloading script (see [`BROWSER_RELOAD_SCRIPT`](@ref)) at the end
+of its body, i.e. directly before the </body> tag.
+All files served are added to the file watcher, which is responsible
 to check whether they're already watched or not.
-Finally the file will be served via a 200 (successful) response.
+Finally the file is served via a 200 (successful) response. If the file does
+not exist, a response with status 404 and message "404 not found" is sent.
 """
 function serve_file(fw, req::HTTP.Request)
     fs_filepath = get_file(req.target)
@@ -95,10 +101,13 @@ function serve_file(fw, req::HTTP.Request)
     end
 end
 
-"""
-    ws_tracker(http)
 
-The WebSocket tracker -- upgrades HTTP request to WS.
+"""
+    ws_tracker(::HTTP.Stream)
+
+The websocket tracker. Upgrades the HTTP request in the stream to a websocket
+and adds this connection to the viewers in the global dictionary
+`WS_HTML_FILES`.
 """
 function ws_tracker(http::HTTP.Stream)
     # +/- copy-paste from HTTP.WebSockets.upgrade ..............................
@@ -136,12 +145,13 @@ function ws_tracker(http::HTTP.Stream)
     return nothing
 end
 
+
 """
-    serve(filewatcher=SimpleWatcher(); ipaddr, port)
+    serve(filewatcher=SimpleWatcher(); ipaddr::Union{String,IPAddr}, port::Int)
 
 Main function to start a server at `http://ipaddr:port` and render what is in the current folder.
 
-* `filewatcher` is a file watcher with an API to be described in detail.
+* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref)
 * `ipaddr` is either a string representing a valid IP address (e.g.: `"127.0.0.1"`) or an `IPAddr`
 object (e.g.: `ip"127.0.0.1"`). You can also write `"localhost"` (default).
 * `port` is an integer between 8000 (default) and 9000.
@@ -154,9 +164,10 @@ serve()
 ```
 
 If you open a browser to `localhost:8000`, you should see the `index.html` page from the `example`
-folder being rendered.
+folder being rendered. If you change the file, the browser should automatically
+reload the page and show the changes.
 """
-function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="localhost", port::Int=8000)
+function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String,IPAddr}="localhost", port::Int=8000)
     # check arguments
     if isa(ipaddr, String)
         if ipaddr == "localhost"
@@ -184,7 +195,7 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="local
     end
 
     server = Sockets.listen(port)
-    println("✓ LiveServer listening on $saddr:$port... (use CTRL+C to shut down)")
+    println("✓ LiveServer listening on $saddr:$port...\n  (use CTRL+C to shut down)")
     @async HTTP.listen(ipaddr, server=server) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade to websocket

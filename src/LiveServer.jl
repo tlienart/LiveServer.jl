@@ -1,19 +1,26 @@
+"""
+Provides the [`serve`](@ref) command which runs a live server, and a simple
+file-watcher [`SimpleWatcher`](@ref) which can also be used independently.
+The main API functions of the latter are [`start`](@ref), [`stop`](@ref),
+[`set_callback`](@ref), and [`watch_file`](@ref).
+
+`LiveServer` depends on packages `HTTP` and `Sockets`.
+"""
 module LiveServer
 
 using HTTP
-using FileWatching
 using Sockets
 
-export serve, SimpleWatcher
+export serve, SimpleWatcher, start, stop, set_callback, watch_file
 
 # the script to be added to HTML files
 const BROWSER_RELOAD_SCRIPT = """
     <!-- browser-reload script, automatically added by the LiveServer.jl -->
     <script type="text/javascript">
-      var browser_reload_socket_M3sp9eAgRFN9y = new WebSocket("ws://" + location.host + location.pathname);
-      browser_reload_socket_M3sp9eAgRFN9y.onmessage = function(msg) {
+      var ws_M3sp9eAgRFN9y = new WebSocket("ws://" + location.host + location.pathname);
+      ws_M3sp9eAgRFN9y.onmessage = function(msg) {
           if(msg.data === "update"){
-              browser_reload_socket_M3sp9eAgRFN9y.close();
+              ws_M3sp9eAgRFN9y.close();
               location.reload();
           }
       };
