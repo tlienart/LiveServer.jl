@@ -7,7 +7,7 @@
 | [![Build Status](https://travis-ci.org/asprionj/LiveServer.jl.svg?branch=master)](https://travis-ci.org/asprionj/LiveServer.jl) | [![codecov.io](http://codecov.io/github/asprionj/LiveServer.jl/coverage.svg?branch=master)](http://codecov.io/github/asprionj/LiveServer.jl?branch=master) |
 
 This is a simple and lightweight development server written in Julia, based on [HTTP.jl](https://github.com/JuliaWeb/HTTP.jl).
-It has live-reload capability, i.e. when changing files, every browser (tab) currently displaying a corresponding page is automatically updated.
+It has live-reload capability, i.e. when changing files, every browser (tab) currently displaying a corresponding page is automatically refreshed.
 This updating is triggered via WebSockets and therefore only works with browsers supporting this feature (and also insecure `ws://` connections to `localhost`).
 
 This package can be compared to python's [`http.server`](https://docs.python.org/3/library/http.server.html) (but with live reload) or node's [`browsersync`](https://www.browsersync.io/) (but much simpler).
