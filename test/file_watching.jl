@@ -66,9 +66,9 @@ end
     @test !LS.isrunning(sw)
 
     LS.start(sw)
-    @test LS.isrunning(sw)
+    sleep(0.05)
 
-    # XXX
-    @test_broken LS.stop(sw)
-    @test_broken !LS.isrunning(sw)
+    @test LS.isrunning(sw)
+    @test LS.stop(sw)
+    @test !LS.isrunning(sw)
 end
