@@ -4,7 +4,7 @@ using HTTP
 using FileWatching
 using Sockets
 
-export serve
+export serve, SimpleWatcher
 
 # the script to be added to HTML files
 const BROWSER_RELOAD_SCRIPT = """
