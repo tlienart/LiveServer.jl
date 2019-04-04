@@ -2,6 +2,9 @@ const tmpdir = mktempdir()
 const file1 = joinpath(tmpdir, "file1")
 const file2 = joinpath(tmpdir, "file2")
 
+write(file1, ".")
+write(file2, ".")
+
 @testset "WatchedFile struct          " begin
     wf1 = LS.WatchedFile(file1)
     wf2 = LS.WatchedFile(file2)
@@ -24,8 +27,8 @@ const file2 = joinpath(tmpdir, "file2")
     @test wf1.mtime > t1
 end
 
-@testset "SimpleWatcher struct        " begin
 
+@testset "SimpleWatcher struct        " begin
     sw  = LS.SimpleWatcher()
     sw1 = LS.SimpleWatcher(identity, sleeptime=0.0)
 
@@ -41,4 +44,29 @@ end
     @test sw1.callback("blah") == "blah"
     @test isempty(sw1.filelist)
     @test sw1.task === nothing
+end
+
+
+@testset "watch_file routines         " begin
+    sw = LS.SimpleWatcher(identity)
+
+    LS.watch_file(sw, file1)
+    LS.watch_file(sw, file2)
+
+    @test sw.filelist[1].path == file1
+    @test sw.filelist[2].path == file2
+
+    # is_file_watched
+
+    @test LS.is_file_watched(sw, file1)
+    @test LS.is_file_watched(sw, file2)
+
+    # isrunning?
+    @test !LS.isrunning(sw)
+
+    LS.start(sw)
+    @test LS.isrunning(sw)
+    @test_broken LS.stop(sw)
+    @test_broken !LS.isrunning(sw)
+
 end
