@@ -1,8 +1,8 @@
-"A watched file; construct with its path as single argument"
-mutable struct WatchedFile
-    path::String
+"A watched file; built with its path as single argument"
+mutable struct WatchedFile{T<:AbstractString}
+    path::T
     mtime::Float64
-    WatchedFile(path::String) = new(path, mtime(path))
+    WatchedFile(path) = new{typeof(path)}(path, mtime(path))
 end
 
 "Check if a `WatchedFile` has changed"
@@ -37,7 +37,8 @@ mutable struct SimpleWatcher
     task::Union{Nothing,Task}
     sleeptime::Float64
     filelist::Vector{WatchedFile}
-    SimpleWatcher(fcn::Union{Nothing,Function}=nothing; sleeptime::Float64=0.2) = new(fcn,nothing,max(0.1,sleeptime),Vector{WatchedFile}())
+    SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1) =
+        new(callback,nothing,max(0.05,sleeptime),Vector{WatchedFile}())
 end
 
 """
@@ -50,22 +51,18 @@ and with a warning for all other exceptions.
 function _file_watcher(w::SimpleWatcher)
     try
         while true
-            # checking for changed files
-            changed_files = Vector{String}()
-            foreach(w.filelist) do wf
+            # only check files if there's a callback to call upon changes
+            (w.callback != nothing) && foreach(w.filelist) do wf
                 if has_changed(wf)
                     set_unchanged!(wf)
-                    push!(changed_files, wf.path)
+                    w.callback(wf.path)
                 end
             end
-
-            # invoke callback on each changed file (if it's defined), then sleep
-            (w.callback != nothing) && foreach(w.callback, changed_files)
             sleep(w.sleeptime)
         end
     catch EXC
         if !isa(EXC, InterruptException) # if interruption, normal termination
-            @warn "Exception in hdlr: " EXC
+            @warn "Exception in file-watching task; please stop the server (Ctrl-C): " EXC
         end
     end
 end
@@ -76,7 +73,11 @@ end
 [INTERNAL] Helper function ensuring that the `_file_watcher` task has ended
 before continuing.
 """
-_waitfor_task_shutdown(w::SimpleWatcher) = while !istaskdone(w.task) sleep(0.05) end
+function _waitfor_task_shutdown(w::SimpleWatcher)
+    while !istaskdone(w.task)
+        sleep(0.05)
+    end
+end
 
 """
     set_callback(w::SimpleWatcher, fcn::Function)
@@ -86,9 +87,9 @@ file change. Can be "hot-swapped", i.e. while the file watcher is running.
 The callback function receives a string with the file path and is not
 expected to return anything.
 """
-function set_callback(w::SimpleWatcher, fcn::Function)
+function set_callback(w::SimpleWatcher, callback::Function)
     prev_running = stop(w) # returns true if was running
-    w.callback = fcn
+    w.callback = callback
     prev_running && start(w) # start again if it was running before
 end
 
@@ -133,10 +134,10 @@ end
 
 API function to check whether a file is already being watched.
 """
-# is_file_watched(w::SimpleWatcher, path::String) = path ∈ [wf.path for wf ∈ w.filelist]
-function is_file_watched(w::SimpleWatcher, path::String)
-    return path ∈ [wf.path for wf ∈ w.filelist]
-end
+is_file_watched(w::SimpleWatcher, path::String) = any(wf -> wf.path == path, w.filelist)
+    # ~4x faster, if ever need be:
+    # for wf ∈ w.filelist wf.path == path && return true end
+    # return false
 
 
 """

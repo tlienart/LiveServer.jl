@@ -21,7 +21,7 @@ end
 
 Function reacting to the change of files.
 """
-function file_changed_callback(filepath::String)
+function file_changed_callback(filepath::AbstractString)
     println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
     if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
         # if html file, update viewers of this file only
@@ -201,10 +201,9 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="local
         end
     catch err
         if isa(err, InterruptException)
-            println("\n⋮ waiting for everything to shut down")
+            println("\n⋮ shutting down the live server")
 
-            # stop the file watcher
-            stop(filewatcher)
+            stop(filewatcher) # stop the file watcher
 
             # close all websockets
             for wss ∈ values(WS_HTML_FILES)
@@ -212,10 +211,7 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String, IPAddr}="local
             end
             empty!(WS_HTML_FILES)
 
-            # shut down server
-            close(server)
-            while (server.status != 6) sleep(0.05) end
-
+            close(server) # shut down server
             println("\n✓ LiveServer shut down.")
         else
             throw(err)
