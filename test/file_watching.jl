@@ -31,6 +31,9 @@ end
 
 @testset "SimpleWatcher struct        " begin
     sw  = LS.SimpleWatcher()
+
+    isa(sw, LS.FileWatcher)
+
     sw1 = LS.SimpleWatcher(identity, sleeptime=0.0)
 
     # Base constructor check
@@ -66,9 +69,50 @@ end
     @test !LS.isrunning(sw)
 
     LS.start(sw)
-    sleep(0.05)
+    sleep(0.001)
 
     @test LS.isrunning(sw)
     @test LS.stop(sw)
     @test !LS.isrunning(sw)
+
+    #
+    # modify callback to something that will eventually throw an error
+    #
+
+    set_callback!(sw, log)
+    @test sw.callback(exp(1.0)) ≈ 1.0
+
+    LS.start(sw)
+    sleep(0.001)
+
+    # causing a modification will generate an error because the callback
+    # function will fail on a string
+    write(file1, "modif")
+    sleep(0.1)
+    @test !sw.isok
+
+    #
+    # deleting files
+    #
+
+    file3 = joinpath(tmpdir, "file3")
+    write(file3, "hello")
+
+    sw = LS.SimpleWatcher(identity)
+
+    LS.watch_file!(sw, file1)
+    LS.watch_file!(sw, file2)
+    LS.watch_file!(sw, file3)
+
+    @test length(sw.watchedfiles) == 3
+
+    start(sw)
+
+    rm(file3)
+    sleep(0.1)
+
+    # file3 was deleted
+    @test length(sw.watchedfiles) == 2
+    @test sw.watchedfiles[1].path == file1
+    @test sw.watchedfiles[2].path == file2
 end

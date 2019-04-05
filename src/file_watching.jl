@@ -36,7 +36,13 @@ Set the current state of a `WatchedFile` as unchanged"
 set_unchanged!(wf::WatchedFile) = wf.mtime = mtime(wf.path)
 
 
+"""
+    FileWatcher
+
+Abstract Type for file watching objects such as [`SimpleWatcher`](@ref).
+"""
 abstract type FileWatcher end
+
 
 """
     SimpleWatcher([callback]; sleeptime::Float64=0.1) <: FileWatcher
@@ -135,7 +141,6 @@ function file_watcher_task!(fw::FileWatcher)
                 if state == 0
                     continue
                 elseif state == 1
-                    sqrt(-1)
                     # the file has changed, set it unchanged and trigger callback
                     set_unchanged!(wf)
                     fw.callback(wf.path)
