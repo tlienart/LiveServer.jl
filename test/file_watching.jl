@@ -57,10 +57,10 @@ end
     @test sw.watchedfiles[1].path == file1
     @test sw.watchedfiles[2].path == file2
 
-    # is_file_watched
+    # is_watched
 
-    @test LS.is_file_watched(sw, file1)
-    @test LS.is_file_watched(sw, file2)
+    @test LS.is_watched(sw, file1)
+    @test LS.is_watched(sw, file2)
 
     # isrunning?
     @test !LS.isrunning(sw)
