@@ -65,30 +65,29 @@ Finally the file is served via a 200 (successful) response. If the file does
 not exist, a response with status 404 and message "404 not found" is sent.
 """
 function serve_file(fw, req::HTTP.Request)
-    fs_filepath = get_fs_path(req.target)
-
+    fs_path = get_fs_path(req.target)
     # in case the path was not resolved, return a 404
-    isempty(fs_filepath) && return HTTP.Response(404, "404; file not found.")
+    isempty(fs_path) && return HTTP.Response(404, "404: file not found.")
 
-    content = read(fs_filepath, String)
+    content = read(fs_path, String)
     # if html, add the browser-sync script to it
-    if splitext(fs_filepath)[2] == ".html"
-        end_of_body_match = match(r"</body>", content)
-        if end_of_body_match === nothing
+    if splitext(fs_path)[2] == ".html"
+        end_body_match = match(r"</body>", content)
+        if end_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
             content *= BROWSER_RELOAD_SCRIPT
         else
-            end_of_body = prevind(content, end_of_body_match.offset)
+            end_body = prevind(content, end_body_match.offset)
             # reconstruct the page with the reloading script
             io = IOBuffer()
-            write(io, content[1:end_of_body])
+            write(io, SubString(content, 1:end_body))
             write(io, BROWSER_RELOAD_SCRIPT)
-            write(io, content[nextind(content, end_of_body):end])
+            write(io, SubString(content, nextind(content, end_body):lastindex(content)))
             content = take!(io)
         end
     end
     # add this file to the file watcher, send content to client
-    watch_file!(fw, fs_filepath)
+    watch_file!(fw, fs_path)
     return HTTP.Response(200, content)
 end
 
@@ -129,7 +128,7 @@ end
 
 
 """
-    serve(filewatcher=SimpleWatcher(); port::Int)
+    serve(fw::FileWatcher=SimpleWatcher(); port::Int)
 
 Main function to start a server at `http://localhost:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
@@ -146,19 +145,19 @@ cd("example")
 serve()
 ```
 
-If you open a browser to `localhost:8000`, you should see the `index.html` page from the `example`
-folder being rendered. If you change the file, the browser will automatically reload the page and
-show the changes.
+If you open a browser to `http://localhost:8000`, you should see the `index.html` page from the
+`example` folder being rendered. If you change the file, the browser will automatically reload the
+page and show the changes.
 """
-function serve(filewatcher=SimpleWatcher(); port::Int=8000)
+function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
     # set the callback and start the file watcher
-    set_callback!(filewatcher, file_changed_callback)
-    start(filewatcher)
+    set_callback!(fw, file_changed_callback)
+    start(fw)
 
     # make request handler
-    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(filewatcher, req))
+    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req))
 
     server = Sockets.listen(port)
     println("✓ LiveServer listening on http://localhost:$port...\n  (use CTRL+C to shut down)")
@@ -175,16 +174,16 @@ function serve(filewatcher=SimpleWatcher(); port::Int=8000)
     # wait until user interrupts the LiveServer (using CTRL+C).
     try while true
         sleep(0.1)
-        (filewatcher.status == :interrupted) && throw(InterruptException())
+        (fw.status == :interrupted) && throw(InterruptException())
         end
     catch err
         if isa(err, InterruptException)
             VERBOSE.x && println("\n⋮ shutting down LiveServer")
 
-            stop(filewatcher)
+            stop(fw)
             # close any remaining websockets
-            for wss ∈ values(WS_HTML_FILES)
-                foreach(wsi -> close(wsi.io), wss)
+            for wss ∈ values(WS_HTML_FILES), wsi ∈ wss
+                close(wsi.io)
             end
             empty!(WS_HTML_FILES)
 
