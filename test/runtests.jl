@@ -1,4 +1,4 @@
-using LiveServer, Test
+using LiveServer, Test, Crayons
 const LS = LiveServer
 
 include("file_watching.jl")

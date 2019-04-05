@@ -87,7 +87,8 @@ end
 
     # causing a modification will generate an error because the callback
     # function will fail on a string
-    println("\n⚠ Deliberately causing an error to be displayed and handled...\n")
+    cray = Crayon(foreground=:cyan, bold=true)
+    println(cray, "\n⚠ Deliberately causing an error to be displayed and handled...\n")
     write(file1, "modif")
     sleep(0.2) # needs to be sufficient to give time for propagation.
     @test sw.status == :interrupted
