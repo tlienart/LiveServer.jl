@@ -99,6 +99,7 @@ mutable struct SimpleWatcher <: FileWatcher
     task::Union{Nothing,Task}         # asynchronous file-watching task
     sleeptime::Float64                # sleep-time before checking for file changes
     watchedfiles::Vector{WatchedFile} # list of files being watched
+    isok::Bool                        # set to false in case of errors (to be caught by server)
 end
 
 """
@@ -109,7 +110,7 @@ The `sleeptime` argument can be used to determine how often to check for file ch
 every 0.1 second and minimum is 0.05).
 """
 SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1) =
-    SimpleWatcher(callback, nothing, max(0.05, sleeptime), Vector{WatchedFile}())
+    SimpleWatcher(callback, nothing, max(0.05, sleeptime), Vector{WatchedFile}(), true)
 
 
 """
@@ -131,14 +132,17 @@ function file_watcher_task!(fw::FileWatcher)
             deleted_files = Vector{Int}()
             for (i, wf) ∈ enumerate(fw.watchedfiles)
                 state = has_changed(wf)
-                if state == 1
+                if state == 0
+                    continue
+                elseif state == 1
+                    sqrt(-1)
                     # the file has changed, set it unchanged and trigger callback
                     set_unchanged!(wf)
                     fw.callback(wf.path)
                 elseif state == -1
                     # the file does not exist, eventually delete it from list of watched files
-                    println("ℹ [SimpleWatcher]: file '$(wf.path)' does not exist (anymore); "*
-                            "removing it from list of watched files.")
+                    VERBOSE.x && println("ℹ [SimpleWatcher]: file '$(wf.path)' does not exist " *
+                                         " (anymore); removing it from list of watched files.")
                     push!(deleted_files, i)
                 end
             end
@@ -146,12 +150,12 @@ function file_watcher_task!(fw::FileWatcher)
             deleteat!(fw.watchedfiles, deleted_files)
         end
     catch err
-        # an InterruptException is the normal way for this task to end, if anything else
-        # happened (unlikely), send a warning message.
-        # TODO: clean this up to propagate error better.
-        if !isa(err, InterruptException)
-            @warn "Exception in file-watching task; please stop the server (Ctrl-C): " err
+        # an InterruptException is the normal way for this task to end
+        if isa(err, InterruptException)
+            return nothing
         end
+        @error "An error happened whilst watching files; shutting down. Error was: $err"
+        fw.isok = false
     end
 end
 
@@ -228,6 +232,6 @@ Add a file to be watched for changes.
 function watch_file!(fw::FileWatcher, f_path::AbstractString)
     if isfile(f_path) && !is_watched(fw, f_path)
         push!(fw.watchedfiles, WatchedFile(f_path))
-        println("ℹ [SimpleWatcher]: now watching '$f_path'")
+        VERBOSE.x && println("ℹ [SimpleWatcher]: now watching '$f_path'")
     end
 end

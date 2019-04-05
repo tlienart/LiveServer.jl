@@ -27,12 +27,20 @@ const BROWSER_RELOAD_SCRIPT = """
     </script>
     """
 
+const VERBOSE = Ref{Bool}(false)
 
 # "List of files being tracked by WebSocket connections"
 const WS_HTML_FILES = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
 
 include("file_watching.jl")
 include("server.jl")
+
+"""
+    verbose(b)
+
+Set the verbosity to either true (showing messages) or false (default).
+"""
+verbose(b::Bool) = (VERBOSE.x = b)
 
 """
     example()
