@@ -20,8 +20,8 @@ WatchedFile(f_path::AbstractString) = WatchedFile(f_path, mtime(f_path))
 """
     has_changed(wf::WatchedFile)
 
-Check if a `WatchedFile` has changed. Returns -1 if the file does not exist, 0 if it does
-exist but has not changed, and 1 if it has changed.
+Check if a `WatchedFile` has changed. Returns -1 if the file does not exist, 0 if it does exist but
+has not changed, and 1 if it has changed.
 """
 function has_changed(wf::WatchedFile)
     isfile(wf.path) || return -1
@@ -39,20 +39,20 @@ set_unchanged!(wf::WatchedFile) = wf.mtime = mtime(wf.path)
 """
     SimpleWatcher([callback]; sleeptime::Float64=0.1)
 
-A simple file watcher. You can specify a callback function, receiving the
-path of each file that has changed as an `AbstractString`, at construction or later
-by the API function described below. The `sleeptime` is the time waited
-between to runs of the loop looking for changed files, it is constrained to be
-at least 0.05s.
+A simple file watcher. You can specify a callback function, receiving the path of each file that
+has changed as an `AbstractString`, at construction or later by the API function described below.
+The `sleeptime` is the time waited between to runs of the loop looking for changed files, it is
+constrained to be at least 0.05s.
 
 # API functions
+
 It follows an overview on all API functions. Here, `w` is a `SimpleWatcher`.
-The main API functions that are used by the live server, and thus are to
-be overloaded by external file watchers and exported by default:
+The main API functions that are used by the live server, and thus are to be overloaded by external
+file watchers and exported by default:
 
 - `start(w)`: start the watcher
-- `stop(w)`: stop the watcher; preserves the list of watched files and new files
-   can still be added using `watch_file!`
+- `stop(w)`: stop the watcher; preserves the list of watched files and new files can still be added
+using `watch_file!`
 - `set_callback!(w, callback::Function)`: set callback to be executed upon file changes
 - `watch_file!(w, filepath::AbstractString)`: add file to be watched
 

@@ -51,8 +51,8 @@ end
 @testset "watch_file routines         " begin
     sw = LS.SimpleWatcher(identity)
 
-    LS.watch_file(sw, file1)
-    LS.watch_file(sw, file2)
+    LS.watch_file!(sw, file1)
+    LS.watch_file!(sw, file2)
 
     @test sw.filelist[1].path == file1
     @test sw.filelist[2].path == file2
