@@ -87,9 +87,10 @@ end
 
     # causing a modification will generate an error because the callback
     # function will fail on a string
+    println("\n⚠ Deliberately causing an error to be displayed and handled...\n")
     write(file1, "modif")
-    sleep(0.1)
-    @test !sw.isok
+    sleep(0.2)
+    @test sw.status == :interrupted
 
     #
     # deleting files

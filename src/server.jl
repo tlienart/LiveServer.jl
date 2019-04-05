@@ -187,7 +187,7 @@ function serve(filewatcher=SimpleWatcher(); port::Int=8000)
     # wait until user interrupts the LiveServer (using CTRL+C).
     try while true
         sleep(0.1)
-        filewatcher.isok || throw(InterruptException)
+        (filewatcher.status == :interrupted) && throw(InterruptException())
         end
     catch err
         if isa(err, InterruptException)

@@ -105,7 +105,7 @@ mutable struct SimpleWatcher <: FileWatcher
     task::Union{Nothing,Task}         # asynchronous file-watching task
     sleeptime::Float64                # sleep-time before checking for file changes
     watchedfiles::Vector{WatchedFile} # list of files being watched
-    isok::Bool                        # set to false in case of errors (to be caught by server)
+    status::Symbol                    # set to :interrupted as appropriate (caught by server)
 end
 
 """
@@ -116,7 +116,7 @@ The `sleeptime` argument can be used to determine how often to check for file ch
 every 0.1 second and minimum is 0.05).
 """
 SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1) =
-    SimpleWatcher(callback, nothing, max(0.05, sleeptime), Vector{WatchedFile}(), true)
+    SimpleWatcher(callback, nothing, max(0.05, sleeptime), Vector{WatchedFile}(), :runnable)
 
 
 """
@@ -155,12 +155,12 @@ function file_watcher_task!(fw::FileWatcher)
             deleteat!(fw.watchedfiles, deleted_files)
         end
     catch err
+        fw.status = :interrupted
         # an InterruptException is the normal way for this task to end
-        if isa(err, InterruptException)
-            return nothing
+        if !isa(err, InterruptException)
+            @error "An error happened whilst watching files; shutting down. Error was: $err"
         end
-        @error "An error happened whilst watching files; shutting down. Error was: $err"
-        fw.isok = false
+        return nothing
     end
 end
 
@@ -175,6 +175,7 @@ function set_callback!(fw::FileWatcher, callback::Function)
     prev_running = stop(fw)   # returns true if was running
     fw.callback  = callback
     prev_running && start(fw) # restart if it was running before
+    fw.status = :runnable
     return nothing
 end
 
