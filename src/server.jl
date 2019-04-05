@@ -147,35 +147,28 @@ end
 
 
 """
-    serve(filewatcher=SimpleWatcher(); ipaddr::Union{String,IPAddr}, port::Int)
+    serve(filewatcher=SimpleWatcher(); port::Int)
 
-Main function to start a server at `http://ipaddr:port` and render what is in the current folder.
+Main function to start a server at `http://localhost:port` and render what is in the current
+directory. (See also [`example`](@ref) for an example folder).
 
-* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref)
-* `ipaddr` is either a string representing a valid IP address (e.g.: `"127.0.0.1"`) or an `IPAddr`
-object (e.g.: `ip"127.0.0.1"`). You can also write `"localhost"` (default).
+* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) and
+messaging the viewers (web sockets) upon detecting file changes.
 * `port` is an integer between 8000 (default) and 9000.
 
 # Example
 
 ```julia
-cd(joinpath(pathof(LiveServer), "example"))
+LiveServer.example()
+cd("example")
 serve()
 ```
 
 If you open a browser to `localhost:8000`, you should see the `index.html` page from the `example`
-folder being rendered. If you change the file, the browser should automatically
-reload the page and show the changes.
+folder being rendered. If you change the file, the browser will automatically reload the page and
+show the changes.
 """
-function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String,IPAddr}="localhost", port::Int=8000)
-    # check arguments
-    if isa(ipaddr, String)
-        if ipaddr == "localhost"
-            ipaddr = ip"0.0.0.0"
-        else
-            ipaddr = parse(IPAddr, ipaddr)
-        end
-    end
+function serve(filewatcher=SimpleWatcher(); port::Int=8000)
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
     # set the callback and start the file watcher
@@ -185,38 +178,28 @@ function serve(filewatcher=SimpleWatcher(); ipaddr::Union{String,IPAddr}="localh
     # make request handler
     req_handler = HTTP.RequestHandlerFunction(req -> serve_file(filewatcher, req))
 
-    # start listening
-    saddr = "http://"
-    if ipaddr == "localhost"
-        saddr *= "localhost"
-        ipaddr = ip"127.0.0.1"
-    else
-        saddr *= "$ipaddr"
-    end
-
     server = Sockets.listen(port)
-    println("✓ LiveServer listening on $saddr:$port...\n  (use CTRL+C to shut down)")
-    @async HTTP.listen(ipaddr, server=server) do http::HTTP.Stream
+    println("✓ LiveServer listening on http://localhost:$port...\n  (use CTRL+C to shut down)")
+    @async HTTP.listen(Sockets.localhost, port, server=server) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade to websocket
             ws_tracker(http)
         else
-            # directly handle HTTP request
+            # handle HTTP request
             HTTP.handle(req_handler, http)
         end
     end
 
-    # wait until user issues a CTRL+C command.
+    # wait until user interrupts the LiveServer (using CTRL+C).
     try while true
         sleep(0.1)
         end
     catch err
         if isa(err, InterruptException)
-            println("\n⋮ shutting down the live server")
+            println("\n⋮ shutting down LiveServer")
 
-            stop(filewatcher) # stop the file watcher
-
-            # close all websockets
+            stop(filewatcher)
+            # close any remaining websockets
             for wss ∈ values(WS_HTML_FILES)
                 foreach(wsi -> close(wsi.io), wss)
             end
