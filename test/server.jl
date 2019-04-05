@@ -24,7 +24,13 @@ tasks that you will try to start.
     cd(dirname(dirname(pathof(LiveServer))))
     cd(joinpath("test", "dummies"))
     port = 8123
+
+    isdir("css") && rm("css", recursive=true)
+    isfile("tmp.html") && rm("tmp.html")
+
     write("tmp.html", "blah")
+    mkdir("css")
+    write("css/foo.css", "body { color: pink; }")
 
     #
     # STEP 1: launching the listener
@@ -61,11 +67,16 @@ tasks that you will try to start.
     response = HTTP.get("http://localhost:$port/tmp.html")
     @test response.status == 200
     @test String(response.body) == read("tmp.html", String) * LS.BROWSER_RELOAD_SCRIPT
+    response = HTTP.get("http://localhost:$port/css/foo.css")
+    @test String(response.body) == read("css/foo.css", String)
+    @test response.status == 200
 
     # we asked earlier for index.html therefore that file should be followed
     @test fw.watchedfiles[1].path == "index.html"
     # also tmp
     @test fw.watchedfiles[2].path == "tmp.html"
+    # and the css
+    @test fw.watchedfiles[3].path == "css/foo.css"
 
     # if we modify the file, it should trigger the callback function which should open
     # and then subsequently close a websocket. We check this happens properly by adding
@@ -74,18 +85,29 @@ tasks that you will try to start.
     LS.WS_VIEWERS["tmp.html"] = [sentinel]
 
     @test sentinel.io.writable
-
     write("tmp.html", "something new")
     sleep(0.1)
-
     # the sentinel websocket should be closed
     @test !sentinel.io.writable
     # the websockets should have been flushed
     @test isempty(LS.WS_VIEWERS["tmp.html"])
 
-    # if we remove the file, it shall stop following it
+    # let's do this again with an infra file which will ping all websockets
+    sentinel1 = HTTP.WebSockets.WebSocket(IOBuffer())
+    sentinel2 = HTTP.WebSockets.WebSocket(IOBuffer())
+    push!(LS.WS_VIEWERS["tmp.html"], sentinel1)
+    LS.WS_VIEWERS["css/foo.css"] = [sentinel2]
+    write("css/foo.css", "body { color:blue; }")
+    sleep(0.1)
+    # all sentinel websockets should be closed
+    @test !sentinel1.io.writable
+    @test !sentinel2.io.writable
+
+    # if we remove the files, it shall stop following it
     rm("tmp.html")
+    rm("css", recursive=true)
     sleep(0.25)
+    # only index.html is still watched
     @test length(fw.watchedfiles) == 1
 
     #
