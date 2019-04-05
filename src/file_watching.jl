@@ -93,22 +93,21 @@ stop(w)
 ```
 """
 mutable struct SimpleWatcher
-    "Callback function executed upon file changes, receives a file path as `AbstractString`"
-    callback::Union{Nothing,Function}
-
-    "The asynchronous file-watching task"
-    task::Union{Nothing,Task}
-
-    "Sleep time between checks for changes on watched files"
-    sleeptime::Float64
-
-    "List of files being watched"
-    filelist::Vector{WatchedFile}
-
-    "Default constructor"
-    SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1) =
-        new(callback,nothing,max(0.05,sleeptime),Vector{WatchedFile}())
+    callback::Union{Nothing,Function} # callback function triggered upon file change
+    task::Union{Nothing,Task}         # asynchronous file-watching task
+    sleeptime::Float64                # sleep-time before checking for file changes
+    filelist::Vector{WatchedFile}     # list of files being watched
 end
+
+"""
+    SimpleWatcher([callback]; sleeptime)
+
+Instantiate a new `SimpleWatcher` with an optional callback triggered upon file change.
+The `sleeptime` argument can be used to determine how often to check for file change (default is
+every 0.1 second and minimum is 0.05).
+"""
+SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1) =
+    SimpleWatcher(callback, nothing, max(0.05, sleeptime), Vector{WatchedFile}())
 
 
 """
