@@ -35,24 +35,26 @@ end
 
 
 """
-    get_file(filepath::AbstractString)
+    get_fs_path(req_path::AbstractString)
 
-Get filesystem path to requested file, or `nothing` if the file does not exist.
+Return the filesystem path corresponding to a requested path, or an empty String if the file
+was not found.
 """
-function get_file(filepath::AbstractString)
+function get_fs_path(req_path::AbstractString)::String
     # TODO: use HTTP.URI stuff to ensure portability. URI targets always come
     #       with forward slashes, which is OK for Linux-based systems but not
     #       for Windows...
-    (filepath[1] == '/') && (filepath = "."*filepath)
+    fs_path = ""
+    startswith(req_path, '/') && (fs_path = "." * req_path)
 
-    if filepath[end] == '/'
+    if endswith(req_path, '/')
         # have to check for index.html. Assume index has standard `.html` extension.
-        phtml = joinpath(filepath, "index.html")
-        isfile(phtml) && return phtml
-        # otherwise return nothing
-        return nothing
+        fs_path = joinpath(fs_path, "index.html")
+        isfile(fs_path) && return fs_path
+        # otherwise return an empty string
+        return ""
     else
-        return ifelse(isfile(filepath), filepath, nothing)
+        return ifelse(isfile(fs_path), fs_path, "")
     end
 end
 
@@ -71,34 +73,31 @@ Finally the file is served via a 200 (successful) response. If the file does
 not exist, a response with status 404 and message "404 not found" is sent.
 """
 function serve_file(fw, req::HTTP.Request)
-    fs_filepath = get_file(req.target)
+    fs_filepath = get_fs_path(req.target)
 
-    if fs_filepath == nothing
-        return HTTP.Response(404, "404 not found")
-    else
-        file_content = read(fs_filepath, String)
-        # if html, add the browser-sync script to it
-        if splitext(fs_filepath)[2] == ".html"
-            end_of_body_match = match(r"</body>", file_content)
-            if end_of_body_match === nothing
-                # TODO: better handling of this case
-                throw(ErrorException("Could not find a closing `</body>` tag before which " *
-                                     "to inject the reloading script."))
-            else
-                end_of_body = prevind(file_content, end_of_body_match.offset)
-                # reconstruct the page with the reloading script
-                io = IOBuffer()
-                write(io, file_content[1:end_of_body])
-                write(io, BROWSER_RELOAD_SCRIPT)
-                write(io, file_content[nextind(file_content, end_of_body):end])
-                file_content = String(take!(io))
-            end
+    # in case the path was not resolved, return a 404
+    isempty(fs_filepath) && return HTTP.Response(404, "404; file not found.")
+
+    file_content = read(fs_filepath, String)
+    # if html, add the browser-sync script to it
+    if splitext(fs_filepath)[2] == ".html"
+        end_of_body_match = match(r"</body>", file_content)
+        if end_of_body_match === nothing
+            # no </body> tag found, trying to add the reload script at the end; this may fail.
+            f_content *= BROWSER_RELOAD_SCRIPT
+        else
+            end_of_body = prevind(file_content, end_of_body_match.offset)
+            # reconstruct the page with the reloading script
+            io = IOBuffer()
+            write(io, file_content[1:end_of_body])
+            write(io, BROWSER_RELOAD_SCRIPT)
+            write(io, file_content[nextind(file_content, end_of_body):end])
+            file_content = String(take!(io))
         end
-
-        # add this file to the file watcher, send content to client
-        watch_file!(fw, fs_filepath)
-        return HTTP.Response(200, file_content)
     end
+    # add this file to the file watcher, send content to client
+    watch_file!(fw, fs_filepath)
+    return HTTP.Response(200, file_content)
 end
 
 
@@ -110,12 +109,8 @@ and adds this connection to the viewers in the global dictionary
 `WS_HTML_FILES`.
 """
 function ws_tracker(http::HTTP.Stream)
-    # +/- copy-paste from HTTP.WebSockets.upgrade ..............................
-    if !HTTP.hasheader(http, "Sec-WebSocket-Version", "13")
-        throw(HTTP.WebSocketError(0, "Expected \"Sec-WebSocket-Version: 13\"!\n" *
-                                     "$(http.message)"))
-    end
-
+    # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always have
+    # the right format as it always triggered by after a Response
     HTTP.setstatus(http, 101)
     HTTP.setheader(http, "Upgrade" => "websocket")
     HTTP.setheader(http, "Connection" => "Upgrade")
@@ -125,10 +120,9 @@ function ws_tracker(http::HTTP.Stream)
 
     io = http.stream
     ws = HTTP.WebSockets.WebSocket(io; server=true)
-    # end copy-paste ...........................................................
 
     # add to list of html files being "watched"
-    filepath = get_file(http.message.target)
+    filepath = get_fs_path(http.message.target)
     if filepath === nothing
         # should not happen, since WS request comes from just served file...
         throw(ErrorException("WebSocket request from inexistent file at path "*
