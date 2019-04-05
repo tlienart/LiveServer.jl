@@ -5,7 +5,7 @@ const file2 = joinpath(tmpdir, "file2")
 write(file1, ".")
 write(file2, ".")
 
-@testset "WatchedFile struct          " begin
+@testset "Watcher/WatchedFile struct  " begin
     wf1 = LS.WatchedFile(file1)
     wf2 = LS.WatchedFile(file2)
 
@@ -28,8 +28,7 @@ write(file2, ".")
     @test wf1.mtime > t1
 end
 
-
-@testset "SimpleWatcher struct        " begin
+@testset "Watcher/SimpleWatcher struct" begin
     sw  = LS.SimpleWatcher()
 
     isa(sw, LS.FileWatcher)
@@ -50,8 +49,7 @@ end
     @test sw1.task === nothing
 end
 
-
-@testset "watch_file routines         " begin
+@testset "Watcher/watch  file routines" begin
     sw = LS.SimpleWatcher(identity)
 
     LS.watch_file!(sw, file1)

@@ -21,11 +21,11 @@ end
 
 Function reacting to the change of a file `filepath`. Is set as callback for the file watcher.
 """
-function file_changed_callback(filepath::AbstractString)
-    VERBOSE.x && println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
-    if endswith(filepath, ".html")
+function file_changed_callback(f_path::AbstractString)
+    VERBOSE.x && println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
+    if endswith(f_path, ".html")
         # if html file, update viewers of this file only
-        update_and_close_viewers!(WS_HTML_FILES[filepath])
+        update_and_close_viewers!(WS_HTML_FILES[f_path])
     else
         # otherwise (e.g. modification to a CSS file), update all viewers
         foreach(update_and_close_viewers!, values(WS_HTML_FILES))
