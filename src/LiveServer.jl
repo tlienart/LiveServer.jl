@@ -27,10 +27,30 @@ const BROWSER_RELOAD_SCRIPT = """
     </script>
     """
 
+
 # "List of files being tracked by WebSocket connections"
 const WS_HTML_FILES = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
 
 include("file_watching.jl")
 include("server.jl")
 
+"""
+    example()
+
+Simple function to copy an example website folder to the current working directory that can be
+watched by the LiveServer to get an idea of how things work.
+
+### Example
+
+```julia
+LiveServer.example()
+cd("example")
+serve()
+```
+"""
+function example(; basedir="")
+    isempty(basedir) && (basedir = pwd())
+    cp(joinpath(dirname(dirname(pathof(LiveServer))), "example"), joinpath(basedir, "example"))
 end
+
+end # module
