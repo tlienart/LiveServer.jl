@@ -70,26 +70,26 @@ function serve_file(fw, req::HTTP.Request)
     # in case the path was not resolved, return a 404
     isempty(fs_filepath) && return HTTP.Response(404, "404; file not found.")
 
-    file_content = read(fs_filepath, String)
+    content = read(fs_filepath, String)
     # if html, add the browser-sync script to it
     if splitext(fs_filepath)[2] == ".html"
-        end_of_body_match = match(r"</body>", file_content)
+        end_of_body_match = match(r"</body>", content)
         if end_of_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
-            f_content *= BROWSER_RELOAD_SCRIPT
+            content *= BROWSER_RELOAD_SCRIPT
         else
-            end_of_body = prevind(file_content, end_of_body_match.offset)
+            end_of_body = prevind(content, end_of_body_match.offset)
             # reconstruct the page with the reloading script
             io = IOBuffer()
-            write(io, file_content[1:end_of_body])
+            write(io, content[1:end_of_body])
             write(io, BROWSER_RELOAD_SCRIPT)
-            write(io, file_content[nextind(file_content, end_of_body):end])
-            file_content = String(take!(io))
+            write(io, content[nextind(content, end_of_body):end])
+            content = take!(io)
         end
     end
     # add this file to the file watcher, send content to client
     watch_file!(fw, fs_filepath)
-    return HTTP.Response(200, file_content)
+    return HTTP.Response(200, content)
 end
 
 
@@ -114,12 +114,8 @@ function ws_tracker(http::HTTP.Stream)
     ws = HTTP.WebSockets.WebSocket(io; server=true)
 
     # add to list of html files being "watched"
+    # NOTE: this file always exists because the query is generated just after serving it
     filepath = get_fs_path(http.message.target)
-    if filepath === nothing
-        # should not happen, since WS request comes from just served file...
-        throw(ErrorException("WebSocket request from inexistent file at path "*
-                             "'$(http.message.target)'."))
-    end
 
     # if the file is already being watched, add ws to it (e.g. several tabs); otherwise add to dict
     # note, nonresponsive ws will be eliminated by update_viewers
