@@ -90,7 +90,7 @@ end
     cray = Crayon(foreground=:cyan, bold=true)
     println(cray, "\n⚠ Deliberately causing an error to be displayed and handled...\n")
     write(file1, "modif")
-    sleep(0.2) # needs to be sufficient to give time for propagation.
+    sleep(0.25) # needs to be sufficient to give time for propagation.
     @test sw.status == :interrupted
 
     #
@@ -111,7 +111,7 @@ end
     start(sw)
 
     rm(file3)
-    sleep(0.1)
+    sleep(0.25) # needs to be sufficient to give time for propagation.
 
     # file3 was deleted
     @test length(sw.watchedfiles) == 2
