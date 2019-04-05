@@ -89,7 +89,7 @@ end
     # function will fail on a string
     println("\n⚠ Deliberately causing an error to be displayed and handled...\n")
     write(file1, "modif")
-    sleep(0.2)
+    sleep(0.2) # needs to be sufficient to give time for propagation.
     @test sw.status == :interrupted
 
     #
