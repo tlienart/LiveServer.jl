@@ -5,7 +5,7 @@ const file2 = joinpath(tmpdir, "file2")
 write(file1, ".")
 write(file2, ".")
 
-@testset "WatchedFile struct          " begin
+@testset "Watcher/WatchedFile struct  " begin
     wf1 = LS.WatchedFile(file1)
     wf2 = LS.WatchedFile(file2)
 
@@ -28,8 +28,7 @@ write(file2, ".")
     @test wf1.mtime > t1
 end
 
-
-@testset "SimpleWatcher struct        " begin
+@testset "Watcher/SimpleWatcher struct" begin
     sw  = LS.SimpleWatcher()
 
     isa(sw, LS.FileWatcher)
@@ -50,8 +49,7 @@ end
     @test sw1.task === nothing
 end
 
-
-@testset "watch_file routines         " begin
+@testset "Watcher/watch  file routines" begin
     sw = LS.SimpleWatcher(identity)
 
     LS.watch_file!(sw, file1)
@@ -61,7 +59,6 @@ end
     @test sw.watchedfiles[2].path == file2
 
     # is_watched
-
     @test LS.is_watched(sw, file1)
     @test LS.is_watched(sw, file2)
 
@@ -78,8 +75,7 @@ end
     #
     # modify callback to something that will eventually throw an error
     #
-
-    set_callback!(sw, log)
+    LS.set_callback!(sw, log)
     @test sw.callback(exp(1.0)) ≈ 1.0
 
     LS.start(sw)
@@ -108,7 +104,7 @@ end
 
     @test length(sw.watchedfiles) == 3
 
-    start(sw)
+    LS.start(sw)
 
     rm(file3)
     sleep(0.25) # needs to be sufficient to give time for propagation.

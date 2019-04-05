@@ -11,18 +11,19 @@ module LiveServer
 using HTTP
 using Sockets
 
-export serve, SimpleWatcher, start, stop, set_callback!, watch_file!
+export serve, verbose
 
-# the script to be added to HTML files
+# the script to be added to HTML files; the random string added to `ws` is to make
+# sure the socket does not clash with any other JS library that may be on the page.
 const BROWSER_RELOAD_SCRIPT = """
     <!-- browser-reload script, automatically added by the LiveServer.jl -->
     <script type="text/javascript">
-      var ws_M3sp9eAgRFN9y = new WebSocket("ws://" + location.host + location.pathname);
-      ws_M3sp9eAgRFN9y.onmessage = function(msg) {
-          if(msg.data === "update"){
-              ws_M3sp9eAgRFN9y.close();
+      var ws_liveserver_M3sp9 = new WebSocket("ws://" + location.host + location.pathname);
+      ws_liveserver_M3sp9.onmessage = function(msg) {
+          if (msg.data === "update") {
+              ws_liveserver_M3sp9.close();
               location.reload();
-          }
+          };
       };
     </script>
     """
@@ -30,7 +31,7 @@ const BROWSER_RELOAD_SCRIPT = """
 const VERBOSE = Ref{Bool}(false)
 
 # "List of files being tracked by WebSocket connections"
-const WS_HTML_FILES = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
+const WS_VIEWERS = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
 
 include("file_watching.jl")
 include("server.jl")

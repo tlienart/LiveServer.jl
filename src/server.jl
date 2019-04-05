@@ -21,14 +21,14 @@ end
 
 Function reacting to the change of a file `filepath`. Is set as callback for the file watcher.
 """
-function file_changed_callback(filepath::AbstractString)
-    VERBOSE.x && println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
-    if endswith(filepath, ".html")
+function file_changed_callback(f_path::AbstractString)
+    VERBOSE.x && println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
+    if endswith(f_path, ".html")
         # if html file, update viewers of this file only
-        update_and_close_viewers!(WS_HTML_FILES[filepath])
+        update_and_close_viewers!(WS_VIEWERS[f_path])
     else
         # otherwise (e.g. modification to a CSS file), update all viewers
-        foreach(update_and_close_viewers!, values(WS_HTML_FILES))
+        foreach(update_and_close_viewers!, values(WS_VIEWERS))
     end
     return nothing
 end
@@ -41,21 +41,13 @@ Return the filesystem path corresponding to a requested path, or an empty String
 was not found.
 """
 function get_fs_path(req_path::AbstractString)::String
-    # TODO: use HTTP.URI stuff to ensure portability. URI targets always come
-    #       with forward slashes, which is OK for Linux-based systems but not
-    #       for Windows...
-    fs_path = ""
-    startswith(req_path, '/') && (fs_path = "." * req_path)
-
-    if endswith(req_path, '/')
-        # have to check for index.html. Assume index has standard `.html` extension.
-        fs_path = joinpath(fs_path, "index.html")
-        isfile(fs_path) && return fs_path
-        # otherwise return an empty string
-        return ""
-    else
-        return ifelse(isfile(fs_path), fs_path, "")
-    end
+    # first element after the split is **always** "/"
+    r_parts = split(HTTP.URI(req_path).path[2:end], "/")
+    fs_path = joinpath(r_parts...)
+    # if no file is specified, try to append `index.html` and see
+    endswith(req_path, "/") && (fs_path = joinpath(fs_path, "index.html"))
+    # either the result is a valid file path in which case it's returned otherwise ""
+    return ifelse(isfile(fs_path), fs_path, "")
 end
 
 
@@ -73,31 +65,30 @@ Finally the file is served via a 200 (successful) response. If the file does
 not exist, a response with status 404 and message "404 not found" is sent.
 """
 function serve_file(fw, req::HTTP.Request)
-    fs_filepath = get_fs_path(req.target)
-
+    fs_path = get_fs_path(req.target)
     # in case the path was not resolved, return a 404
-    isempty(fs_filepath) && return HTTP.Response(404, "404; file not found.")
+    isempty(fs_path) && return HTTP.Response(404, "404: file not found.")
 
-    file_content = read(fs_filepath, String)
+    content = read(fs_path, String)
     # if html, add the browser-sync script to it
-    if splitext(fs_filepath)[2] == ".html"
-        end_of_body_match = match(r"</body>", file_content)
-        if end_of_body_match === nothing
+    if splitext(fs_path)[2] == ".html"
+        end_body_match = match(r"</body>", content)
+        if end_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
-            f_content *= BROWSER_RELOAD_SCRIPT
+            content *= BROWSER_RELOAD_SCRIPT
         else
-            end_of_body = prevind(file_content, end_of_body_match.offset)
+            end_body = prevind(content, end_body_match.offset)
             # reconstruct the page with the reloading script
             io = IOBuffer()
-            write(io, file_content[1:end_of_body])
+            write(io, SubString(content, 1:end_body))
             write(io, BROWSER_RELOAD_SCRIPT)
-            write(io, file_content[nextind(file_content, end_of_body):end])
-            file_content = String(take!(io))
+            write(io, SubString(content, nextind(content, end_body):lastindex(content)))
+            content = take!(io)
         end
     end
     # add this file to the file watcher, send content to client
-    watch_file!(fw, fs_filepath)
-    return HTTP.Response(200, file_content)
+    watch_file!(fw, fs_path)
+    return HTTP.Response(200, content)
 end
 
 
@@ -106,7 +97,7 @@ end
 
 The websocket tracker. Upgrades the HTTP request in the stream to a websocket
 and adds this connection to the viewers in the global dictionary
-`WS_HTML_FILES`.
+`WS_VIEWERS`.
 """
 function ws_tracker(http::HTTP.Stream)
     # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always have
@@ -122,26 +113,22 @@ function ws_tracker(http::HTTP.Stream)
     ws = HTTP.WebSockets.WebSocket(io; server=true)
 
     # add to list of html files being "watched"
+    # NOTE: this file always exists because the query is generated just after serving it
     filepath = get_fs_path(http.message.target)
-    if filepath === nothing
-        # should not happen, since WS request comes from just served file...
-        throw(ErrorException("WebSocket request from inexistent file at path "*
-                             "'$(http.message.target)'."))
-    end
 
     # if the file is already being watched, add ws to it (e.g. several tabs); otherwise add to dict
     # note, nonresponsive ws will be eliminated by update_viewers
-    if filepath ∈ keys(WS_HTML_FILES)
-        push!(WS_HTML_FILES[filepath], ws)
+    if filepath ∈ keys(WS_VIEWERS)
+        push!(WS_VIEWERS[filepath], ws)
     else
-        WS_HTML_FILES[filepath] = [ws]
+        WS_VIEWERS[filepath] = [ws]
     end
     return nothing
 end
 
 
 """
-    serve(filewatcher=SimpleWatcher(); port::Int)
+    serve(fw::FileWatcher=SimpleWatcher(); port::Int)
 
 Main function to start a server at `http://localhost:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
@@ -158,23 +145,23 @@ cd("example")
 serve()
 ```
 
-If you open a browser to `localhost:8000`, you should see the `index.html` page from the `example`
-folder being rendered. If you change the file, the browser will automatically reload the page and
-show the changes.
+If you open a browser to `http://localhost:8000`, you should see the `index.html` page from the
+`example` folder being rendered. If you change the file, the browser will automatically reload the
+page and show the changes.
 """
-function serve(filewatcher=SimpleWatcher(); port::Int=8000)
+function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
     # set the callback and start the file watcher
-    set_callback!(filewatcher, file_changed_callback)
-    start(filewatcher)
+    set_callback!(fw, file_changed_callback)
+    start(fw)
 
     # make request handler
-    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(filewatcher, req))
+    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req))
 
     server = Sockets.listen(port)
     println("✓ LiveServer listening on http://localhost:$port...\n  (use CTRL+C to shut down)")
-    @async HTTP.listen(Sockets.localhost, port, server=server) do http::HTTP.Stream
+    @async HTTP.listen(Sockets.localhost, port, server=server, readtimeout=0) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade to websocket
             ws_tracker(http)
@@ -187,24 +174,24 @@ function serve(filewatcher=SimpleWatcher(); port::Int=8000)
     # wait until user interrupts the LiveServer (using CTRL+C).
     try while true
         sleep(0.1)
-        (filewatcher.status == :interrupted) && throw(InterruptException())
+        (fw.status == :interrupted) && throw(InterruptException())
         end
     catch err
-        if isa(err, InterruptException)
-            VERBOSE.x && println("\n⋮ shutting down LiveServer")
-
-            stop(filewatcher)
-            # close any remaining websockets
-            for wss ∈ values(WS_HTML_FILES)
-                foreach(wsi -> close(wsi.io), wss)
-            end
-            empty!(WS_HTML_FILES)
-
-            close(server) # shut down server
-            VERBOSE.x && println("\n✓ LiveServer shut down.")
-        else
+        if !isa(err, InterruptException)
             throw(err)
         end
+    finally # close everything that might still be alive
+        VERBOSE.x && println("\n⋮ shutting down LiveServer")
+
+        stop(fw)
+        # close any remaining websockets
+        for wss ∈ values(WS_VIEWERS), wsi ∈ wss
+            close(wsi.io)
+        end
+        empty!(WS_VIEWERS)
+
+        close(server) # shut down server
+        VERBOSE.x && println("\n✓ LiveServer shut down.")
     end
     return nothing
 end
