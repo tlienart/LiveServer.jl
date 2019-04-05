@@ -37,13 +37,13 @@ end
     @test sw.callback === nothing
     @test sw.task === nothing
     @test sw.sleeptime == 0.1
-    @test isempty(sw.filelist)
-    @test eltype(sw.filelist) == LS.WatchedFile
+    @test isempty(sw.watchedfiles)
+    @test eltype(sw.watchedfiles) == LS.WatchedFile
 
     @test sw1.sleeptime == 0.05 # via the clamping
     @test sw1.callback(2) == 2 # identity function
     @test sw1.callback("blah") == "blah"
-    @test isempty(sw1.filelist)
+    @test isempty(sw1.watchedfiles)
     @test sw1.task === nothing
 end
 
@@ -54,8 +54,8 @@ end
     LS.watch_file!(sw, file1)
     LS.watch_file!(sw, file2)
 
-    @test sw.filelist[1].path == file1
-    @test sw.filelist[2].path == file2
+    @test sw.watchedfiles[1].path == file1
+    @test sw.watchedfiles[2].path == file2
 
     # is_file_watched
 

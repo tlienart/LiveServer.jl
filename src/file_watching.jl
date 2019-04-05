@@ -96,7 +96,7 @@ mutable struct SimpleWatcher
     callback::Union{Nothing,Function} # callback function triggered upon file change
     task::Union{Nothing,Task}         # asynchronous file-watching task
     sleeptime::Float64                # sleep-time before checking for file changes
-    filelist::Vector{WatchedFile}     # list of files being watched
+    watchedfiles::Vector{WatchedFile}     # list of files being watched
 end
 
 """
@@ -111,32 +111,33 @@ SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1)
 
 
 """
-    _file_watcher!(w::SimpleWatcher)
+    file_watcher!(w::SimpleWatcher)
 
-Helper function that's spawned as an asynchronous task which
-checks for changed files. Terminates normally upon an `InterruptException`,
-and with a warning for all other exceptions.
+Helper function that's spawned as an asynchronous task and checks for file changes. This task
+is normally terminated upon an `InterruptException` and shows a warning in the presence of
+any other exception.
 """
-function _file_watcher!(w::SimpleWatcher)
+function file_watcher!(w::SimpleWatcher)
     try
         while true
-            # only check files if there's a callback to call upon changes
-            if w.callback != nothing
-                deleted_files = []
-                for (i, wf) ∈ enumerate(w.filelist)
-                    changed_state = has_changed(wf)
-                    if changed_state == 1
-                        set_unchanged!(wf)
-                        w.callback(wf.path)
-                    elseif changed_state == -1
-                        println("ℹ [SimpleWatcher]: file '$(wf.path)' does not exist, removing it from list")
-                        push!(deleted_files, i)
-                    end
-                end
-                # remove deleted files from list of watched files
-                deleteat!(w.filelist, deleted_files)
-            end
             sleep(w.sleeptime)
+            # only check files if there's a callback to call upon changes
+            w.callback === nothing && continue
+
+            # keep track of any files that may have been deleted
+            deleted_files = []
+            for (i, wf) ∈ enumerate(w.watchedfiles)
+                changed_state = has_changed(wf)
+                if changed_state == 1
+                    set_unchanged!(wf)
+                    w.callback(wf.path)
+                elseif changed_state == -1
+                    println("ℹ [SimpleWatcher]: file '$(wf.path)' does not exist, removing it from list")
+                    push!(deleted_files, i)
+                end
+            end
+            # remove deleted files from list of watched files
+            deleteat!(w.watchedfiles, deleted_files)
         end
     catch EXC
         if !isa(EXC, InterruptException) # if interruption, normal termination
@@ -149,7 +150,7 @@ end
 """
     _waitfor_task_shutdown(w::SimpleWatcher)
 
-Helper function ensuring that the `_file_watcher!` task has ended
+Helper function ensuring that the `file_watcher!` task has ended
 before continuing.
 """
 function _waitfor_task_shutdown(w::SimpleWatcher)
@@ -190,7 +191,7 @@ isrunning(w::SimpleWatcher) = (w.task != nothing) && !istaskdone(w.task)
 Mandatory API function to start the file watcher.
 """
 function start(w::SimpleWatcher)
-    !isrunning(w) && (w.task = @async _file_watcher!(w))
+    !isrunning(w) && (w.task = @async file_watcher!(w))
     # wait until task runs to ensure reliable start (e.g. if `stop` called right afterwards)
     while w.task.state != :runnable
         sleep(0.001)
@@ -223,7 +224,7 @@ end
 
 Optional API function to check whether a file is already being watched.
 """
-is_file_watched(w::SimpleWatcher, filepath::AbstractString) = any(wf -> wf.path == filepath, w.filelist)
+is_file_watched(w::SimpleWatcher, filepath::AbstractString) = any(wf -> wf.path == filepath, w.watchedfiles)
 
 
 """
@@ -233,7 +234,7 @@ Mandatory API function to add a file to be watched for changes.
 """
 function watch_file!(w::SimpleWatcher, filepath::AbstractString)
     if isfile(filepath) && !is_file_watched(w, filepath)
-        push!(w.filelist, WatchedFile(filepath))
+        push!(w.watchedfiles, WatchedFile(filepath))
         println("ℹ [SimpleWatcher]: now watching '$filepath'")
     end
 end
