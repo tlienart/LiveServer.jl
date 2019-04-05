@@ -31,7 +31,7 @@ const BROWSER_RELOAD_SCRIPT = """
 const VERBOSE = Ref{Bool}(false)
 
 # "List of files being tracked by WebSocket connections"
-const WS_HTML_FILES = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
+const WS_VIEWERS = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
 
 include("file_watching.jl")
 include("server.jl")

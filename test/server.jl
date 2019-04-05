@@ -71,7 +71,7 @@ tasks that you will try to start.
     # and then subsequently close a websocket. We check this happens properly by adding
     # our own sentinel websocket
     sentinel = HTTP.WebSockets.WebSocket(IOBuffer())
-    LS.WS_HTML_FILES["tmp.html"] = [sentinel]
+    LS.WS_VIEWERS["tmp.html"] = [sentinel]
 
     @test sentinel.io.writable
 
@@ -81,7 +81,7 @@ tasks that you will try to start.
     # the sentinel websocket should be closed
     @test !sentinel.io.writable
     # the websockets should have been flushed
-    @test isempty(LS.WS_HTML_FILES["tmp.html"])
+    @test isempty(LS.WS_VIEWERS["tmp.html"])
 
     # if we remove the file, it shall stop following it
     rm("tmp.html")
@@ -102,6 +102,9 @@ tasks that you will try to start.
         close(server)
         true
     end == true
+
+    # Check that WS_FILES is properly destroyed
+    isempty(LS.WS_VIEWERS)
 
     cd(bk)
 end

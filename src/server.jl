@@ -25,10 +25,10 @@ function file_changed_callback(f_path::AbstractString)
     VERBOSE.x && println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
     if endswith(f_path, ".html")
         # if html file, update viewers of this file only
-        update_and_close_viewers!(WS_HTML_FILES[f_path])
+        update_and_close_viewers!(WS_VIEWERS[f_path])
     else
         # otherwise (e.g. modification to a CSS file), update all viewers
-        foreach(update_and_close_viewers!, values(WS_HTML_FILES))
+        foreach(update_and_close_viewers!, values(WS_VIEWERS))
     end
     return nothing
 end
@@ -97,7 +97,7 @@ end
 
 The websocket tracker. Upgrades the HTTP request in the stream to a websocket
 and adds this connection to the viewers in the global dictionary
-`WS_HTML_FILES`.
+`WS_VIEWERS`.
 """
 function ws_tracker(http::HTTP.Stream)
     # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always have
@@ -118,10 +118,10 @@ function ws_tracker(http::HTTP.Stream)
 
     # if the file is already being watched, add ws to it (e.g. several tabs); otherwise add to dict
     # note, nonresponsive ws will be eliminated by update_viewers
-    if filepath ∈ keys(WS_HTML_FILES)
-        push!(WS_HTML_FILES[filepath], ws)
+    if filepath ∈ keys(WS_VIEWERS)
+        push!(WS_VIEWERS[filepath], ws)
     else
-        WS_HTML_FILES[filepath] = [ws]
+        WS_VIEWERS[filepath] = [ws]
     end
     return nothing
 end
@@ -182,10 +182,10 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
 
             stop(fw)
             # close any remaining websockets
-            for wss ∈ values(WS_HTML_FILES), wsi ∈ wss
+            for wss ∈ values(WS_VIEWERS), wsi ∈ wss
                 close(wsi.io)
             end
-            empty!(WS_HTML_FILES)
+            empty!(WS_VIEWERS)
 
             close(server) # shut down server
             VERBOSE.x && println("\n✓ LiveServer shut down.")
