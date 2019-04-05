@@ -19,12 +19,12 @@ write(file2, ".")
     t1 = time()
     sleep(0.01)
     write(file1, "hello")
-    @test LS.has_changed(wf1)
-    @test !LS.has_changed(wf2)
+    @test LS.has_changed(wf1) == 1
+    @test LS.has_changed(wf2) == 0
 
     # Set state as unchanged
     LS.set_unchanged!(wf1)
-    @test !LS.has_changed(wf1)
+    @test LS.has_changed(wf1) == 0
     @test wf1.mtime > t1
 end
 

@@ -1,29 +1,31 @@
 """
-    WatchedFile(filepath::AbstractString)
+    WatchedFile
 
-A watched file; built with its path as single argument
+Struct for a file being watched containing the path to the file as well as the time of last
+modification.
 """
 mutable struct WatchedFile{T<:AbstractString}
-    "Path to the watched file (incl. filename and extension)"
-    filepath::T
-
-    "Last modification time (as obtained by `mtime`)"
+    path::T
     mtime::Float64
-
-    "Default constructor"
-    WatchedFile(filepath) = new{typeof(filepath)}(filepath, mtime(filepath))
 end
+
+"""
+    WatchedFile(f_path)
+
+Construct a new `WatchedFile` object around a file `f_path`.
+"""
+WatchedFile(f_path::AbstractString) = WatchedFile(f_path, mtime(f_path))
 
 
 """
     has_changed(wf::WatchedFile)
 
-Check if a `WatchedFile` has changed. Returns -1 if the file does not exist,
-0 if it does exist but is not changed, and 1 if it is changed.
+Check if a `WatchedFile` has changed. Returns -1 if the file does not exist, 0 if it does
+exist but has not changed, and 1 if it has changed.
 """
 function has_changed(wf::WatchedFile)
-    !isfile(wf.filepath) && return -1
-    return Int(mtime(wf.filepath) > wf.mtime)
+    isfile(wf.path) || return -1
+    return Int(mtime(wf.path) > wf.mtime)
 end
 
 """
@@ -31,7 +33,7 @@ end
 
 Set the current state of a `WatchedFile` as unchanged"
 """
-set_unchanged!(wf::WatchedFile) = wf.mtime = mtime(wf.filepath)
+set_unchanged!(wf::WatchedFile) = wf.mtime = mtime(wf.path)
 
 
 """
@@ -126,9 +128,9 @@ function _file_watcher!(w::SimpleWatcher)
                     changed_state = has_changed(wf)
                     if changed_state == 1
                         set_unchanged!(wf)
-                        w.callback(wf.filepath)
+                        w.callback(wf.path)
                     elseif changed_state == -1
-                        println("ℹ [SimpleWatcher]: file '$(wf.filepath)' does not exist, removing it from list")
+                        println("ℹ [SimpleWatcher]: file '$(wf.path)' does not exist, removing it from list")
                         push!(deleted_files, i)
                     end
                 end
@@ -222,7 +224,7 @@ end
 
 Optional API function to check whether a file is already being watched.
 """
-is_file_watched(w::SimpleWatcher, filepath::AbstractString) = any(wf -> wf.filepath == filepath, w.filelist)
+is_file_watched(w::SimpleWatcher, filepath::AbstractString) = any(wf -> wf.path == filepath, w.filelist)
 
 
 """

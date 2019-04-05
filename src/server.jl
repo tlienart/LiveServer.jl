@@ -19,18 +19,18 @@ end
 """
     file_changed_callback(filepath::AbstractString)
 
-Function reacting to the change of files. Is set as callback for the
-file watcher.
+Function reacting to the change of a file `filepath`. Is set as callback for the file watcher.
 """
 function file_changed_callback(filepath::AbstractString)
     println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
-    if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
+    if endswith(filepath, ".html")
         # if html file, update viewers of this file only
         update_and_close_viewers!(WS_HTML_FILES[filepath])
     else
         # otherwise (e.g. modification to a CSS file), update all viewers
         foreach(update_and_close_viewers!, values(WS_HTML_FILES))
     end
+    return nothing
 end
 
 
