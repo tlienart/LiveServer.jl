@@ -19,31 +19,34 @@ write(file2, ".")
     t1 = time()
     sleep(0.01)
     write(file1, "hello")
-    @test LS.has_changed(wf1)
-    @test !LS.has_changed(wf2)
+    @test LS.has_changed(wf1) == 1
+    @test LS.has_changed(wf2) == 0
 
     # Set state as unchanged
     LS.set_unchanged!(wf1)
-    @test !LS.has_changed(wf1)
+    @test LS.has_changed(wf1) == 0
     @test wf1.mtime > t1
 end
 
 
 @testset "SimpleWatcher struct        " begin
     sw  = LS.SimpleWatcher()
+
+    isa(sw, LS.FileWatcher)
+
     sw1 = LS.SimpleWatcher(identity, sleeptime=0.0)
 
     # Base constructor check
     @test sw.callback === nothing
     @test sw.task === nothing
     @test sw.sleeptime == 0.1
-    @test isempty(sw.filelist)
-    @test eltype(sw.filelist) == LS.WatchedFile
+    @test isempty(sw.watchedfiles)
+    @test eltype(sw.watchedfiles) == LS.WatchedFile
 
     @test sw1.sleeptime == 0.05 # via the clamping
     @test sw1.callback(2) == 2 # identity function
     @test sw1.callback("blah") == "blah"
-    @test isempty(sw1.filelist)
+    @test isempty(sw1.watchedfiles)
     @test sw1.task === nothing
 end
 
@@ -51,24 +54,67 @@ end
 @testset "watch_file routines         " begin
     sw = LS.SimpleWatcher(identity)
 
-    LS.watch_file(sw, file1)
-    LS.watch_file(sw, file2)
+    LS.watch_file!(sw, file1)
+    LS.watch_file!(sw, file2)
 
-    @test sw.filelist[1].path == file1
-    @test sw.filelist[2].path == file2
+    @test sw.watchedfiles[1].path == file1
+    @test sw.watchedfiles[2].path == file2
 
-    # is_file_watched
+    # is_watched
 
-    @test LS.is_file_watched(sw, file1)
-    @test LS.is_file_watched(sw, file2)
+    @test LS.is_watched(sw, file1)
+    @test LS.is_watched(sw, file2)
 
     # isrunning?
     @test !LS.isrunning(sw)
 
     LS.start(sw)
-    sleep(0.05)
+    sleep(0.001)
 
     @test LS.isrunning(sw)
     @test LS.stop(sw)
     @test !LS.isrunning(sw)
+
+    #
+    # modify callback to something that will eventually throw an error
+    #
+
+    set_callback!(sw, log)
+    @test sw.callback(exp(1.0)) ≈ 1.0
+
+    LS.start(sw)
+    sleep(0.001)
+
+    # causing a modification will generate an error because the callback
+    # function will fail on a string
+    cray = Crayon(foreground=:cyan, bold=true)
+    println(cray, "\n⚠ Deliberately causing an error to be displayed and handled...\n")
+    write(file1, "modif")
+    sleep(0.25) # needs to be sufficient to give time for propagation.
+    @test sw.status == :interrupted
+
+    #
+    # deleting files
+    #
+
+    file3 = joinpath(tmpdir, "file3")
+    write(file3, "hello")
+
+    sw = LS.SimpleWatcher(identity)
+
+    LS.watch_file!(sw, file1)
+    LS.watch_file!(sw, file2)
+    LS.watch_file!(sw, file3)
+
+    @test length(sw.watchedfiles) == 3
+
+    start(sw)
+
+    rm(file3)
+    sleep(0.25) # needs to be sufficient to give time for propagation.
+
+    # file3 was deleted
+    @test length(sw.watchedfiles) == 2
+    @test sw.watchedfiles[1].path == file1
+    @test sw.watchedfiles[2].path == file2
 end

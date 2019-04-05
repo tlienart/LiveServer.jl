@@ -1,29 +1,31 @@
 """
-    WatchedFile(filepath::AbstractString)
+    WatchedFile
 
-A watched file; built with its path as single argument
+Struct for a file being watched containing the path to the file as well as the time of last
+modification.
 """
 mutable struct WatchedFile{T<:AbstractString}
-    "Path to the watched file (incl. filename and extension)"
-    filepath::T
-
-    "Last modification time (as obtained by `mtime`)"
+    path::T
     mtime::Float64
-
-    "Default constructor"
-    WatchedFile(filepath) = new{typeof(filepath)}(filepath, mtime(filepath))
 end
+
+"""
+    WatchedFile(f_path)
+
+Construct a new `WatchedFile` object around a file `f_path`.
+"""
+WatchedFile(f_path::AbstractString) = WatchedFile(f_path, mtime(f_path))
 
 
 """
     has_changed(wf::WatchedFile)
 
-Check if a `WatchedFile` has changed. Returns -1 if the file does not exist,
-0 if it does exist but is not changed, and 1 if it is changed.
+Check if a `WatchedFile` has changed. Returns -1 if the file does not exist, 0 if it does exist but
+has not changed, and 1 if it has changed.
 """
 function has_changed(wf::WatchedFile)
-    !isfile(wf.filepath) && return -1
-    return Int(mtime(wf.filepath) > wf.mtime)
+    isfile(wf.path) || return -1
+    return Int(mtime(wf.path) > wf.mtime)
 end
 
 """
@@ -31,26 +33,34 @@ end
 
 Set the current state of a `WatchedFile` as unchanged"
 """
-set_unchanged!(wf::WatchedFile) = wf.mtime = mtime(wf.filepath)
+set_unchanged!(wf::WatchedFile) = wf.mtime = mtime(wf.path)
 
 
 """
-    SimpleWatcher([callback]; sleeptime::Float64=0.1)
+    FileWatcher
 
-A simple file watcher. You can specify a callback function, receiving the
-path of each file that has changed as an `AbstractString`, at construction or later
-by the API function described below. The `sleeptime` is the time waited
-between to runs of the loop looking for changed files, it is constrained to be
-at least 0.05s.
+Abstract Type for file watching objects such as [`SimpleWatcher`](@ref).
+"""
+abstract type FileWatcher end
+
+
+"""
+    SimpleWatcher([callback]; sleeptime::Float64=0.1) <: FileWatcher
+
+A simple file watcher. You can specify a callback function, receiving the path of each file that
+has changed as an `AbstractString`, at construction or later by the API function described below.
+The `sleeptime` is the time waited between to runs of the loop looking for changed files, it is
+constrained to be at least 0.05s.
 
 # API functions
+
 It follows an overview on all API functions. Here, `w` is a `SimpleWatcher`.
-The main API functions that are used by the live server, and thus are to
-be overloaded by external file watchers and exported by default:
+The main API functions that are used by the live server, and thus are to be overloaded by external
+file watchers and exported by default:
 
 - `start(w)`: start the watcher
-- `stop(w)`: stop the watcher; preserves the list of watched files and new files
-   can still be added using `watch_file!`
+- `stop(w)`: stop the watcher; preserves the list of watched files and new files can still be added
+using `watch_file!`
 - `set_callback!(w, callback::Function)`: set callback to be executed upon file changes
 - `watch_file!(w, filepath::AbstractString)`: add file to be watched
 
@@ -58,7 +68,7 @@ Further API functions (probably never used in a normal use case), not
 exported by default:
 
 - `isrunning(w)`: check whether the watcher is running
-- `is_file_watched(w, filepath::AbstractString)`: check whether a file is being watched
+- `is_watched(w, filepath::AbstractString)`: check whether a file is being watched
 
 # Examples
 ```julia
@@ -90,149 +100,144 @@ sleep(0.15)
 stop(w)
 ```
 """
-mutable struct SimpleWatcher
-    "Callback function executed upon file changes, receives a file path as `AbstractString`"
-    callback::Union{Nothing,Function}
-
-    "The asynchronous file-watching task"
-    task::Union{Nothing,Task}
-
-    "Sleep time between checks for changes on watched files"
-    sleeptime::Float64
-
-    "List of files being watched"
-    filelist::Vector{WatchedFile}
-
-    "Default constructor"
-    SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1) =
-        new(callback,nothing,max(0.05,sleeptime),Vector{WatchedFile}())
+mutable struct SimpleWatcher <: FileWatcher
+    callback::Union{Nothing,Function} # callback function triggered upon file change
+    task::Union{Nothing,Task}         # asynchronous file-watching task
+    sleeptime::Float64                # sleep-time before checking for file changes
+    watchedfiles::Vector{WatchedFile} # list of files being watched
+    status::Symbol                    # set to :interrupted as appropriate (caught by server)
 end
 
+"""
+    SimpleWatcher([callback]; sleeptime)
+
+Instantiate a new `SimpleWatcher` with an optional callback triggered upon file change.
+The `sleeptime` argument can be used to determine how often to check for file change (default is
+every 0.1 second and minimum is 0.05).
+"""
+SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1) =
+    SimpleWatcher(callback, nothing, max(0.05, sleeptime), Vector{WatchedFile}(), :runnable)
+
 
 """
-    _file_watcher!(w::SimpleWatcher)
+    file_watcher_task!(w::SimpleWatcher)
 
-Helper function that's spawned as an asynchronous task which
-checks for changed files. Terminates normally upon an `InterruptException`,
-and with a warning for all other exceptions.
+Helper function that's spawned as an asynchronous task and checks for file changes. This task
+is normally terminated upon an `InterruptException` and shows a warning in the presence of
+any other exception.
 """
-function _file_watcher!(w::SimpleWatcher)
+function file_watcher_task!(fw::FileWatcher)
     try
         while true
+            sleep(fw.sleeptime)
+
             # only check files if there's a callback to call upon changes
-            if w.callback != nothing
-                deleted_files = []
-                for (i, wf) ∈ enumerate(w.filelist)
-                    changed_state = has_changed(wf)
-                    if changed_state == 1
-                        set_unchanged!(wf)
-                        w.callback(wf.filepath)
-                    elseif changed_state == -1
-                        println("ℹ [SimpleWatcher]: file '$(wf.filepath)' does not exist, removing it from list")
-                        push!(deleted_files, i)
-                    end
+            fw.callback === nothing && continue
+
+            # keep track of any file that may have been deleted
+            deleted_files = Vector{Int}()
+            for (i, wf) ∈ enumerate(fw.watchedfiles)
+                state = has_changed(wf)
+                if state == 0
+                    continue
+                elseif state == 1
+                    # the file has changed, set it unchanged and trigger callback
+                    set_unchanged!(wf)
+                    fw.callback(wf.path)
+                elseif state == -1
+                    # the file does not exist, eventually delete it from list of watched files
+                    VERBOSE.x && println("ℹ [SimpleWatcher]: file '$(wf.path)' does not exist " *
+                                         " (anymore); removing it from list of watched files.")
+                    push!(deleted_files, i)
                 end
-                # remove deleted files from list of watched files
-                deleteat!(w.filelist, deleted_files)
             end
-            sleep(w.sleeptime)
+            # remove deleted files from list of watched files
+            deleteat!(fw.watchedfiles, deleted_files)
         end
-    catch EXC
-        if !isa(EXC, InterruptException) # if interruption, normal termination
-            @warn "Exception in file-watching task; please stop the server (Ctrl-C): " EXC
+    catch err
+        fw.status = :interrupted
+        # an InterruptException is the normal way for this task to end
+        if !isa(err, InterruptException)
+            @error "An error happened whilst watching files; shutting down. Error was: $err"
         end
+        return nothing
     end
 end
 
 
 """
-    _waitfor_task_shutdown(w::SimpleWatcher)
+    set_callback!(fw::FileWatcher, callback::Function)
 
-Helper function ensuring that the `_file_watcher!` task has ended
-before continuing.
+Mandatory API function to set or change the callback function being executed upon a file change.
+Can be "hot-swapped", i.e. while the file watcher is running.
 """
-function _waitfor_task_shutdown(w::SimpleWatcher)
-    while !istaskdone(w.task)
-        sleep(0.05)
-    end
+function set_callback!(fw::FileWatcher, callback::Function)
+    prev_running = stop(fw)   # returns true if was running
+    fw.callback  = callback
+    prev_running && start(fw) # restart if it was running before
+    fw.status = :runnable
+    return nothing
 end
 
 
 """
-    set_callback!(w::SimpleWatcher, callback::Function)
+    isrunning(fw::FileWatcher)
 
-Mandatory API function to set or change the callback function being executed upon a
-file change. Can be "hot-swapped", i.e. while the file watcher is running.
-The callback function receives an `AbstractString` with the file path and is not
-expected to return anything.
+Optional API function to check whether the file watcher is running.
 """
-function set_callback!(w::SimpleWatcher, callback::Function)
-    prev_running = stop(w) # returns true if was running
-    w.callback = callback
-    prev_running && start(w) # start again if it was running before
-end
+isrunning(fw::FileWatcher) = (fw.task !== nothing) && !istaskdone(fw.task)
 
 
 """
-    isrunning(w::SimpleWatcher)
+    start(w::FileWatcher)
 
-Optional API function to check whether the file watcher is running. Should not be
-required though, since the `start` and `stop` API functions work in any
-case.
+Start the file watcher and wait to make sure the task has started.
 """
-isrunning(w::SimpleWatcher) = (w.task != nothing) && !istaskdone(w.task)
-
-
-"""
-    start(w::SimpleWatcher)
-
-Mandatory API function to start the file watcher.
-"""
-function start(w::SimpleWatcher)
-    !isrunning(w) && (w.task = @async _file_watcher!(w))
+function start(fw::FileWatcher)
+    isrunning(fw) || (fw.task = @async file_watcher_task!(fw))
     # wait until task runs to ensure reliable start (e.g. if `stop` called right afterwards)
-    while w.task.state != :runnable
-        sleep(0.001)
+    while fw.task.state != :runnable
+        sleep(0.01)
     end
 end
 
 
 """
-    stop(w::SimpleWatcher)
+    stop(fw::FileWatcher)
 
-Mandatory API function to stop the file watcher. The list of files being watched is
-preserved. Also, it still accepts new files to be watched by `watch_file!`.
-Once restarted with `start`, it continues watching the files in the list
-(and will initially trigger the callback for all files that have changed
-in the meantime). Returns a `Bool` indicating whether the watcher was
-running before `stop` was called.
+Stop the file watcher. The list of files being watched is preserved and new files can still be
+added to the file watcher using `watch_file!`. It can be restarted with `start`.
+Returns a `Bool` indicating whether the watcher was running before `stop` was called.
 """
-function stop(w::SimpleWatcher)
-    was_running = isrunning(w)
+function stop(fw::FileWatcher)
+    was_running = isrunning(fw)
     if was_running
-        schedule(w.task, InterruptException(), error=true)
-        _waitfor_task_shutdown(w) # required to have consistent behaviour
+        schedule(fw.task, InterruptException(), error=true)
+        # wait until sure the task is done
+        while !istaskdone(fw.task)
+            sleep(0.01)
+        end
     end
     return was_running
 end
 
 
 """
-    is_file_watched(w::SimpleWatcher, filepath::AbstractString)
+    is_watched(fw::FileWatcher, f_path::AbstractString)
 
-Optional API function to check whether a file is already being watched.
+Check whether a file `f_path` is being watched by file watcher `fw`.
 """
-is_file_watched(w::SimpleWatcher, filepath::AbstractString) = any(wf -> wf.filepath == filepath, w.filelist)
+is_watched(fw::FileWatcher, f_path::AbstractString) = any(wf -> wf.path == f_path, fw.watchedfiles)
 
 
 """
-    watch_file!(w::SimpleWatcher, filepath::AbstractString)
+    watch_file!(fw::FileWatcher, f_path::AbstractString)
 
-Mandatory API function to add a file to be watched for changes.
+Add a file to be watched for changes.
 """
-function watch_file!(w::SimpleWatcher, filepath::AbstractString)
-    if isfile(filepath) && !is_file_watched(w, filepath)
-        push!(w.filelist, WatchedFile(filepath))
-        println("ℹ [SimpleWatcher]: now watching '$filepath'")
+function watch_file!(fw::FileWatcher, f_path::AbstractString)
+    if isfile(f_path) && !is_watched(fw, f_path)
+        push!(fw.watchedfiles, WatchedFile(f_path))
+        VERBOSE.x && println("ℹ [SimpleWatcher]: now watching '$f_path'")
     end
 end

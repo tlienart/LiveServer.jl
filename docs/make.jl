@@ -14,6 +14,7 @@ makedocs(
         #     "Quick start"          => "man/quickstart.md",
         #     ],
         "Library" => [
+            "Public"    => "lib/public.md",
             "Internals" => "lib/internals.md",
             ],
         ], # end pages

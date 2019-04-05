@@ -19,18 +19,18 @@ end
 """
     file_changed_callback(filepath::AbstractString)
 
-Function reacting to the change of files. Is set as callback for the
-file watcher.
+Function reacting to the change of a file `filepath`. Is set as callback for the file watcher.
 """
 function file_changed_callback(filepath::AbstractString)
-    println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
-    if lowercase(splitext(filepath)[2]) ∈ (".html", ".htm")
+    VERBOSE.x && println("ℹ [LiveUpdater]: Reacting to change in file '$filepath'...")
+    if endswith(filepath, ".html")
         # if html file, update viewers of this file only
         update_and_close_viewers!(WS_HTML_FILES[filepath])
     else
         # otherwise (e.g. modification to a CSS file), update all viewers
         foreach(update_and_close_viewers!, values(WS_HTML_FILES))
     end
+    return nothing
 end
 
 
@@ -187,10 +187,11 @@ function serve(filewatcher=SimpleWatcher(); port::Int=8000)
     # wait until user interrupts the LiveServer (using CTRL+C).
     try while true
         sleep(0.1)
+        (filewatcher.status == :interrupted) && throw(InterruptException())
         end
     catch err
         if isa(err, InterruptException)
-            println("\n⋮ shutting down LiveServer")
+            VERBOSE.x && println("\n⋮ shutting down LiveServer")
 
             stop(filewatcher)
             # close any remaining websockets
@@ -200,7 +201,7 @@ function serve(filewatcher=SimpleWatcher(); port::Int=8000)
             empty!(WS_HTML_FILES)
 
             close(server) # shut down server
-            println("\n✓ LiveServer shut down.")
+            VERBOSE.x && println("\n✓ LiveServer shut down.")
         else
             throw(err)
         end
