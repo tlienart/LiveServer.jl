@@ -177,21 +177,21 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
         (fw.status == :interrupted) && throw(InterruptException())
         end
     catch err
-        if isa(err, InterruptException)
-            VERBOSE.x && println("\n⋮ shutting down LiveServer")
-
-            stop(fw)
-            # close any remaining websockets
-            for wss ∈ values(WS_VIEWERS), wsi ∈ wss
-                close(wsi.io)
-            end
-            empty!(WS_VIEWERS)
-
-            close(server) # shut down server
-            VERBOSE.x && println("\n✓ LiveServer shut down.")
-        else
+        if !isa(err, InterruptException)
             throw(err)
         end
+    finally # close everything that might still be alive
+        VERBOSE.x && println("\n⋮ shutting down LiveServer")
+
+        stop(fw)
+        # close any remaining websockets
+        for wss ∈ values(WS_VIEWERS), wsi ∈ wss
+            close(wsi.io)
+        end
+        empty!(WS_VIEWERS)
+
+        close(server) # shut down server
+        VERBOSE.x && println("\n✓ LiveServer shut down.")
     end
     return nothing
 end
