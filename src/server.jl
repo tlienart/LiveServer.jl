@@ -41,21 +41,13 @@ Return the filesystem path corresponding to a requested path, or an empty String
 was not found.
 """
 function get_fs_path(req_path::AbstractString)::String
-    # TODO: use HTTP.URI stuff to ensure portability. URI targets always come
-    #       with forward slashes, which is OK for Linux-based systems but not
-    #       for Windows...
-    fs_path = ""
-    startswith(req_path, '/') && (fs_path = "." * req_path)
-
-    if endswith(req_path, '/')
-        # have to check for index.html. Assume index has standard `.html` extension.
-        fs_path = joinpath(fs_path, "index.html")
-        isfile(fs_path) && return fs_path
-        # otherwise return an empty string
-        return ""
-    else
-        return ifelse(isfile(fs_path), fs_path, "")
-    end
+    # first element after the split is **always** "/"
+    r_parts = split(HTTP.URI(req_path).path[2:end], "/")
+    fs_path = joinpath(r_parts...)
+    # if no file is specified, try to append `index.html` and see
+    endswith(req_path, "/") && (fs_path = joinpath(fs_path, "index.html"))
+    # either the result is a valid file path in which case it's returned otherwise ""
+    return ifelse(isfile(fs_path), fs_path, "")
 end
 
 
@@ -174,7 +166,7 @@ function serve(filewatcher=SimpleWatcher(); port::Int=8000)
 
     server = Sockets.listen(port)
     println("✓ LiveServer listening on http://localhost:$port...\n  (use CTRL+C to shut down)")
-    @async HTTP.listen(Sockets.localhost, port, server=server) do http::HTTP.Stream
+    @async HTTP.listen(Sockets.localhost, port, server=server, readtimeout=0) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade to websocket
             ws_tracker(http)

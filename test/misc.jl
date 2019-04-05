@@ -3,6 +3,7 @@
     @test !LS.VERBOSE.x
     verbose(true)
     @test LS.VERBOSE.x
+    verbose(false) # we don't want the tests to show lots of stuff
 
     bk = pwd()
     cd(mktempdir())

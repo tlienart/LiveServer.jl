@@ -59,7 +59,6 @@ end
     @test sw.watchedfiles[2].path == file2
 
     # is_watched
-
     @test LS.is_watched(sw, file1)
     @test LS.is_watched(sw, file2)
 
@@ -76,8 +75,7 @@ end
     #
     # modify callback to something that will eventually throw an error
     #
-
-    set_callback!(sw, log)
+    LS.set_callback!(sw, log)
     @test sw.callback(exp(1.0)) ≈ 1.0
 
     LS.start(sw)
@@ -106,7 +104,7 @@ end
 
     @test length(sw.watchedfiles) == 3
 
-    start(sw)
+    LS.start(sw)
 
     rm(file3)
     sleep(0.25) # needs to be sufficient to give time for propagation.

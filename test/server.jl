@@ -5,10 +5,17 @@
     req = "foo"
     @test LS.get_fs_path(req) == ""
     req = "/test/dummies/index.html"
-    @test LS.get_fs_path(req) == "./test/dummies/index.html"
+    @test LS.get_fs_path(req) == "test/dummies/index.html"
     cd(bk)
 end
 
+#=
+NOTE: if extending these tests, please be careful. As they involve @async tasks which,
+themselves, spawn async tasks, if your tests fail for some reason you will HAVE to kill
+the current Julia session and restart one otherwise the tasks that haven't been killed
+due to the tests not being finished properly will keep running and may clash with new
+tasks that you will try to start.
+=#
 @testset "Server/Step-by-step testing " begin
     #
     # STEP 0: cd to dummies
@@ -37,6 +44,25 @@ end
     @test LS.isrunning(fw)
     # it also should be empty thus far
     @test isempty(fw.watchedfiles)
+
+    #
+    # STEP 2: triggering a request
+    #
+    response = HTTP.get("http://localhost:$port/")
+    @test response.status == 200
+    # the browser script should be appended
+    @test String(response.body) == replace(read("index.html", String),
+                            "</body>"=>"$(LS.BROWSER_RELOAD_SCRIPT)</body>")
+    # if one asks for something incorrect, a 404 should be returned
+
+    # XXX ok so actually an ERROR is thrown, that's not good?
+    @test_throws HTTP.ExceptionRequest.StatusError HTTP.get("http://localhost:$port/no.html")
+
+    # we asked earlier for index.html therefore that file should be followed
+    @test fw.watchedfiles[1].path == "index.html"
+
+    # if we modify the file, it should trigger the callback function which should open
+    # and then subsequently close a websocket
 
     #
     # SHUTTING DOWN

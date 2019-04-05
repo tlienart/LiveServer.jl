@@ -1,4 +1,4 @@
-using LiveServer, Test, Crayons, Sockets
+using LiveServer, Test, Crayons, Sockets, HTTP
 const LS = LiveServer
 
 include("misc.jl")
