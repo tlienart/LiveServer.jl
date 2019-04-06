@@ -57,7 +57,7 @@ end
 Handler function for serving files. This takes a file watcher, to which
 files to be watched can be added, and a request (e.g. a path entered in a tab of the
 browser), and converts it to the appropriate file system path. If the path corresponds to a HTML
-file, it will inject the reloading script (see [`BROWSER_RELOAD_SCRIPT`](@ref)) at the end
+file, it will inject the reloading script (see file `client.js`) at the end
 of its body, i.e. directly before the </body> tag.
 All files served are added to the file watcher, which is responsible
 to check whether they're already watched or not.
@@ -75,13 +75,13 @@ function serve_file(fw, req::HTTP.Request)
         end_body_match = match(r"</body>", content)
         if end_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
-            content *= BROWSER_RELOAD_SCRIPT
+            content *= BROWSER_RELOAD_SCRIPT.x
         else
             end_body = prevind(content, end_body_match.offset)
             # reconstruct the page with the reloading script
             io = IOBuffer()
             write(io, SubString(content, 1:end_body))
-            write(io, BROWSER_RELOAD_SCRIPT)
+            write(io, BROWSER_RELOAD_SCRIPT.x)
             write(io, SubString(content, nextind(content, end_body):lastindex(content)))
             content = take!(io)
         end
@@ -151,6 +151,12 @@ page and show the changes.
 """
 function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
+
+    # load the client-side JS code into memory
+    BROWSER_RELOAD_SCRIPT.x = "<!-- browser-reload script, automatically added by the LiveServer.jl -->\n" *
+        "<script type=\"text/javascript\">\n" *
+        String(read(joinpath(dirname(pathof(@__MODULE__)), "client.js"))) *
+        "\n</script>\n"
 
     # set the callback and start the file watcher
     set_callback!(fw, file_changed_callback)

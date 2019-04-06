@@ -13,20 +13,9 @@ using Sockets
 
 export serve, verbose
 
-# the script to be added to HTML files; the random string added to `ws` is to make
-# sure the socket does not clash with any other JS library that may be on the page.
-const BROWSER_RELOAD_SCRIPT = """
-    <!-- browser-reload script, automatically added by the LiveServer.jl -->
-    <script type="text/javascript">
-      var ws_liveserver_M3sp9 = new WebSocket("ws://" + location.host + location.pathname);
-      ws_liveserver_M3sp9.onmessage = function(msg) {
-          if (msg.data === "update") {
-              ws_liveserver_M3sp9.close();
-              location.reload();
-          };
-      };
-    </script>
-    """
+# reference to the <script> tag to be added to HTML files; loads code from
+# client.js when server starts (`serve()`)
+const BROWSER_RELOAD_SCRIPT = Ref{String}()
 
 const VERBOSE = Ref{Bool}(false)
 
