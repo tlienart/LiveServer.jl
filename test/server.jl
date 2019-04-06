@@ -130,3 +130,34 @@ tasks that you will try to start.
 
     cd(bk)
 end
+
+@testset "Server/ws_tracker testing   " begin
+    bk = pwd()
+    cd(mktempdir())
+    write("ws_TESTFILE.html", "A file") # create a test file to request from
+    empty!(LS.WS_VIEWERS) # make sure list of viewers is empty to start with
+
+    # start ws server
+    server = Sockets.listen(8765)
+    @async HTTP.listen(Sockets.localhost, 8765, server=server, readtimeout=0) do http::HTTP.Stream
+        ws_tracker(http)
+    end
+
+# XXX THIS DOESN'T QUITE WORK
+
+    # ws client
+    try
+        HTTP.WebSockets.open("ws://localhost:8765/ws_TESTFILE.html", retry=false) do ws
+            sleep(0.1)
+            throw(InterruptException())
+        end
+    catch
+    end
+    @test LS.WS_VIEWERS["ws_TESTFILE.html"] isa Vector{HTTP.WebSocket.WebSocket}
+    @test length(WS_VIEWERS["ws_TESTFILE.html"]) ==  1
+
+    # clean up
+    close(server)
+    rm("ws_TESTFILE.html")
+    cd(bk)
+end
