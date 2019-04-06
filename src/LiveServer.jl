@@ -19,8 +19,9 @@ const BROWSER_RELOAD_SCRIPT = Ref{String}()
 
 const VERBOSE = Ref{Bool}(false)
 
-# "List of files being tracked by WebSocket connections"
+# list of files being tracked by WebSocket connections, interrupt catched in ws handler?
 const WS_VIEWERS = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
+const WS_ERROR = Base.Ref{Bool}(false)
 
 include("file_watching.jl")
 include("server.jl")

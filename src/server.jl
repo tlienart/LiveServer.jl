@@ -100,30 +100,42 @@ and adds this connection to the viewers in the global dictionary
 `WS_VIEWERS`.
 """
 function ws_tracker(http::HTTP.Stream)
-    # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always have
-    # the right format as it always triggered by after a Response
-    HTTP.setstatus(http, 101)
-    HTTP.setheader(http, "Upgrade" => "websocket")
-    HTTP.setheader(http, "Connection" => "Upgrade")
-    key = HTTP.header(http, "Sec-WebSocket-Key")
-    HTTP.setheader(http, "Sec-WebSocket-Accept" => HTTP.WebSockets.accept_hash(key))
-    HTTP.startwrite(http)
+    try
+        # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always have
+        # the right format as it always triggered by after a Response
+        HTTP.setstatus(http, 101)
+        HTTP.setheader(http, "Upgrade" => "websocket")
+        HTTP.setheader(http, "Connection" => "Upgrade")
+        key = HTTP.header(http, "Sec-WebSocket-Key")
+        HTTP.setheader(http, "Sec-WebSocket-Accept" => HTTP.WebSockets.accept_hash(key))
+        HTTP.startwrite(http)
 
-    io = http.stream
-    ws = HTTP.WebSockets.WebSocket(io; server=true)
+        io = http.stream
+        ws = HTTP.WebSockets.WebSocket(io; server=true)
 
-    # add to list of html files being "watched"
-    # NOTE: this file always exists because the query is generated just after serving it
-    filepath = get_fs_path(http.message.target)
+        # add to list of html files being "watched"
+        # NOTE: this file always exists because the query is generated just after serving it
+        filepath = get_fs_path(http.message.target)
 
-    # if the file is already being watched, add ws to it (e.g. several tabs); otherwise add to dict
-    # note, nonresponsive ws will be eliminated by update_viewers
-    if filepath ∈ keys(WS_VIEWERS)
-        push!(WS_VIEWERS[filepath], ws)
-    else
-        WS_VIEWERS[filepath] = [ws]
+        # if the file is already being viewed, add ws to it (e.g. several tabs); otherwise add to dict
+        if filepath ∈ keys(WS_VIEWERS)
+            push!(WS_VIEWERS[filepath], ws)
+        else
+            WS_VIEWERS[filepath] = [ws]
+        end
+
+        while isopen(ws.io) sleep(0.05) end
+
+    catch err
+        if isa(err, InterruptException)
+            WS_ERROR[] = true # inform serve() to shut down
+        else
+            @error "An error happened whilst keeping websocket connection open; continuing. Error was: $err"
+        end
+
+    finally
+        return nothing
     end
-    return nothing
 end
 
 
@@ -178,9 +190,12 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
     end
 
     # wait until user interrupts the LiveServer (using CTRL+C).
-    try while true
-        sleep(0.1)
-        (fw.status == :interrupted) && throw(InterruptException())
+    try
+        while true
+            if WS_ERROR.x || fw.status == :interrupted
+                throw(InterruptException())
+            end
+            sleep(0.1)
         end
     catch err
         if !isa(err, InterruptException)
