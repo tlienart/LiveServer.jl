@@ -4,19 +4,16 @@ file-watcher [`SimpleWatcher`](@ref) which can also be used independently.
 The main API functions of the latter are [`start`](@ref), [`stop`](@ref),
 [`set_callback`](@ref), and [`watch_file`](@ref).
 
-`LiveServer` depends on packages `HTTP` and `Sockets`.
+`LiveServer` depends on the `HTTP.jl` package.
 """
 module LiveServer
 
 using HTTP
-using Sockets
+using Sockets # this is in stdlib
 
 export serve, verbose
 
-# reference to the <script> tag to be added to HTML files; loads code from
-# client.js when server starts (`serve()`)
-const BROWSER_RELOAD_SCRIPT = Ref{String}()
-
+const BROWSER_RELOAD_SCRIPT = read(joinpath(dirname(pathof(LiveServer)), "client.html"), String)
 const VERBOSE = Ref{Bool}(false)
 
 # list of files being tracked by WebSocket connections, interrupt catched in ws handler?
@@ -25,6 +22,10 @@ const WS_ERROR = Base.Ref{Bool}(false)
 
 include("file_watching.jl")
 include("server.jl")
+
+#
+# Utilities
+#
 
 """
     verbose(b)

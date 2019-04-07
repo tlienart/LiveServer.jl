@@ -15,15 +15,16 @@ write(file2, ".")
     @test wf1.mtime == mtime(file1)
     @test wf2.mtime == mtime(file2)
 
-    # Check if changed
+    # Apply change and check if it's detecte
     t1 = time()
-    sleep(0.01)
     write(file1, "hello")
+    sleep(1)
     @test LS.has_changed(wf1) == 1
     @test LS.has_changed(wf2) == 0
 
     # Set state as unchanged
     LS.set_unchanged!(wf1)
+    sleep(1)
     @test LS.has_changed(wf1) == 0
     @test wf1.mtime > t1
 end

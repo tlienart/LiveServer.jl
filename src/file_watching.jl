@@ -33,7 +33,7 @@ end
 
 Set the current state of a `WatchedFile` as unchanged"
 """
-set_unchanged!(wf::WatchedFile) = wf.mtime = mtime(wf.path)
+set_unchanged!(wf::WatchedFile) = (wf.mtime = mtime(wf.path))
 
 
 """

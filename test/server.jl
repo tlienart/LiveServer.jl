@@ -138,25 +138,25 @@ end
     # empty!(LS.WS_VIEWERS) # make sure list of viewers is empty to start with
     #
     # # start ws server
-    # server = Sockets.listen(8765)
-    # @async HTTP.listen(Sockets.localhost, 8765, server=server, readtimeout=0) do http::HTTP.Stream
-    #     LS.ws_tracker(http)
+    # port = 8765
+    # server = Sockets.listen(port)
+    # task_listen = @async HTTP.listen(Sockets.localhost, port, server=server) do http::HTTP.Stream
+    #     if HTTP.WebSockets.is_upgrade(http.message)
+    #         LS.ws_tracker(http)
+    #     end
     # end
-    #
-    # # XXX THIS DOESN'T QUITE WORK
     #
     # # ws client
-    # try
-    #     HTTP.WebSockets.open("ws://localhost:8765/ws_TESTFILE.html", retry=false) do ws
-    #         println("blah")
-    #     end
-    # catch err
+    # HTTP.WebSockets.open("ws://127.0.0.1:$port/ws_TESTFILE.html") do ws
+    #     write(ws, "update")
+    #     @test LS.WS_VIEWERS["ws_TESTFILE.html"] isa Vector{HTTP.WebSockets.WebSocket}
+    #     @test length(LS.WS_VIEWERS["ws_TESTFILE.html"]) ==  1
+    #     throw(InterruptException())
     # end
-    # @test LS.WS_VIEWERS["ws_TESTFILE.html"] isa Vector{HTTP.WebSocket.WebSocket}
-    # @test length(WS_VIEWERS["ws_TESTFILE.html"]) ==  1
     #
     # # clean up
     # close(server)
+    # schedule(task_ws, InterruptException(), error=true)
     # rm("ws_TESTFILE.html")
     # cd(bk)
 end
