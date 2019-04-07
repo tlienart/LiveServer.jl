@@ -18,7 +18,7 @@ const VERBOSE = Ref{Bool}(false)
 
 # list of files being tracked by WebSocket connections, interrupt catched in ws handler?
 const WS_VIEWERS = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
-const WS_ERROR = Base.Ref{Bool}(false)
+const WS_INTERRUPT = Base.Ref{Bool}(false)
 
 include("file_watching.jl")
 include("server.jl")
