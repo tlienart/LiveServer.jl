@@ -132,31 +132,45 @@ tasks that you will try to start.
 end
 
 @testset "Server/ws_tracker testing   " begin
-    # bk = pwd()
-    # cd(mktempdir())
-    # write("ws_TESTFILE.html", "A file") # create a test file to request from
-    # empty!(LS.WS_VIEWERS) # make sure list of viewers is empty to start with
-    #
-    # # start ws server
-    # port = 8765
-    # server = Sockets.listen(port)
-    # task_listen = @async HTTP.listen(Sockets.localhost, port, server=server) do http::HTTP.Stream
-    #     if HTTP.WebSockets.is_upgrade(http.message)
-    #         LS.ws_tracker(http)
-    #     end
-    # end
-    #
-    # # ws client
-    # HTTP.WebSockets.open("ws://127.0.0.1:$port/ws_TESTFILE.html") do ws
-    #     write(ws, "update")
-    #     @test LS.WS_VIEWERS["ws_TESTFILE.html"] isa Vector{HTTP.WebSockets.WebSocket}
-    #     @test length(LS.WS_VIEWERS["ws_TESTFILE.html"]) ==  1
-    #     throw(InterruptException())
-    # end
-    #
-    # # clean up
-    # close(server)
-    # schedule(task_ws, InterruptException(), error=true)
-    # rm("ws_TESTFILE.html")
-    # cd(bk)
+    bk = pwd()
+    cd(mktempdir())
+    write("ws_TESTFILE.html", "A file") # create a test file to request from
+    empty!(LS.WS_VIEWERS) # make sure list of viewers is empty to start with
+
+    UPDATE_RECEIVED = false
+
+    # start ws server
+    port = 8765
+    server = Sockets.listen(port)
+    task_listen = @async HTTP.listen(Sockets.localhost, port, server=server, readtimeout=0) do http::HTTP.Stream
+        # if HTTP.W ebSockets.is_upgrade(http.message)
+            LS.ws_tracker(http)
+        # end
+    end
+
+    # ws client
+    task_ws = @async HTTP.WebSockets.open("ws://127.0.0.1:$port/ws_TESTFILE.html", retry=false) do ws
+        while isopen(ws)
+            x = readavailable(ws)
+            !isempty(x) && (String(x)=="update") && (UPDATE_RECEIVED = true)
+            sleep(0.01)
+        end
+    end
+    sleep(5.0) # make sure JIT completed, connection is established and ws_tracker ran
+
+    @test haskey(LS.WS_VIEWERS, "ws_TESTFILE.html")
+    @test length(LS.WS_VIEWERS["ws_TESTFILE.html"]) == 1
+    @test typeof(LS.WS_VIEWERS["ws_TESTFILE.html"][1]) <: HTTP.WebSockets.WebSocket
+
+    # push message to ws client, check if it is received
+    # (that is, if it would react accordingly to an "update" message)
+    LS.update_and_close_viewers!(LS.WS_VIEWERS["ws_TESTFILE.html"])
+    sleep(1.0)
+    @test UPDATE_RECEIVED
+    @test task_ws.state == :done # also check that ws is closed by server
+
+    # clean up
+    close(server)
+    rm("ws_TESTFILE.html")
+    cd(bk)
 end

@@ -9,7 +9,7 @@ closing anyway and clients will re-connect from the re-loaded page.
 function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
     foreach(wss) do wsi
         write(wsi, "update")
-        close(wsi.io)
+        close(wsi)
     end
     empty!(wss)
     return nothing
