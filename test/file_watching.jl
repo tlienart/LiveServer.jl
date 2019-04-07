@@ -1,9 +1,15 @@
+# create files in a temporary dir that we can modify
 const tmpdir = mktempdir()
 const file1 = joinpath(tmpdir, "file1")
 const file2 = joinpath(tmpdir, "file2")
-
 write(file1, ".")
 write(file2, ".")
+
+# on Apple < High Sierra, (i.e. non APFS), the resolution of
+# stat(f).mtime is over a second.
+# also the resolution of time() is much higher so need to sleep
+# there too! it's a bit crazy but ¯\_(ツ)_/¯
+const FS_WAIT = ifelse(Sys.isapple(), 1.1, 0.2)
 
 @testset "Watcher/WatchedFile struct  " begin
     wf1 = LS.WatchedFile(file1)
@@ -17,14 +23,14 @@ write(file2, ".")
 
     # Apply change and check if it's detecte
     t1 = time()
+    sleep(FS_WAIT)
     write(file1, "hello")
-    sleep(1)
+    sleep(FS_WAIT)
     @test LS.has_changed(wf1) == 1
     @test LS.has_changed(wf2) == 0
 
     # Set state as unchanged
     LS.set_unchanged!(wf1)
-    sleep(1)
     @test LS.has_changed(wf1) == 0
     @test wf1.mtime > t1
 end

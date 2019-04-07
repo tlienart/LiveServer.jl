@@ -59,14 +59,14 @@ tasks that you will try to start.
     @test response.status == 200
     # the browser script should be appended
     @test String(response.body) == replace(read("index.html", String),
-                            "</body>"=>"$(LS.BROWSER_RELOAD_SCRIPT.x)</body>")
+                            "</body>"=>"$(LS.BROWSER_RELOAD_SCRIPT)</body>")
     # if one asks for something incorrect, a 404 should be returned
     # XXX ok so actually an ERROR is thrown, that's not good?
     @test_throws HTTP.ExceptionRequest.StatusError HTTP.get("http://localhost:$port/no.html")
     # if one asks for something without a </body>, it should just be appended
     response = HTTP.get("http://localhost:$port/tmp.html")
     @test response.status == 200
-    @test String(response.body) == read("tmp.html", String) * LS.BROWSER_RELOAD_SCRIPT.x
+    @test String(response.body) == read("tmp.html", String) * LS.BROWSER_RELOAD_SCRIPT
     response = HTTP.get("http://localhost:$port/css/foo.css")
     @test String(response.body) == read("css/foo.css", String)
     @test response.status == 200
