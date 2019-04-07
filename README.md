@@ -2,9 +2,9 @@
 
 # Live Server for Julia
 
-| Status | Coverage | Docs |
-| :----: | :----: | :----: |
-| [![Build Status](https://travis-ci.org/asprionj/LiveServer.jl.svg?branch=master)](https://travis-ci.org/asprionj/LiveServer.jl) | [![codecov.io](http://codecov.io/github/asprionj/LiveServer.jl/coverage.svg?branch=master)](http://codecov.io/github/asprionj/LiveServer.jl?branch=master) | [![dev-doc](https://img.shields.io/badge/docs-dev-blue.svg)](https://asprionj.github.io/LiveServer.jl/dev/)
+| Status (Linux/Mac) | Status (Win) | Coverage | Docs |
+| :----: | :----: | :----: | :----: |
+| [![Build Status](https://travis-ci.org/asprionj/LiveServer.jl.svg?branch=master)](https://travis-ci.org/asprionj/LiveServer.jl) | [![AppVeyor](https://ci.appveyor.com/api/projects/status/github/asprionj/LiveServer.jl?branch=master&svg=true)](https://ci.appveyor.com/project/asprionj/LiveServer-jl) | [![codecov.io](http://codecov.io/github/asprionj/LiveServer.jl/coverage.svg?branch=master)](http://codecov.io/github/asprionj/LiveServer.jl?branch=master) | [![dev-doc](https://img.shields.io/badge/docs-dev-blue.svg)](https://asprionj.github.io/LiveServer.jl/dev/)
 
 This is a simple and lightweight development server written in Julia, based on [HTTP.jl](https://github.com/JuliaWeb/HTTP.jl).
 It has live-reload capability, i.e. when changing files, every browser (tab) currently displaying a corresponding page is automatically refreshed.
