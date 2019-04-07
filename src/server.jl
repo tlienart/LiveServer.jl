@@ -75,13 +75,13 @@ function serve_file(fw, req::HTTP.Request)
         end_body_match = match(r"</body>", content)
         if end_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
-            content *= BROWSER_RELOAD_SCRIPT.x
+            content *= BROWSER_RELOAD_SCRIPT
         else
             end_body = prevind(content, end_body_match.offset)
             # reconstruct the page with the reloading script
             io = IOBuffer()
             write(io, SubString(content, 1:end_body))
-            write(io, BROWSER_RELOAD_SCRIPT.x)
+            write(io, BROWSER_RELOAD_SCRIPT)
             write(io, SubString(content, nextind(content, end_body):lastindex(content)))
             content = take!(io)
         end
@@ -100,42 +100,46 @@ and adds this connection to the viewers in the global dictionary
 `WS_VIEWERS`.
 """
 function ws_tracker(http::HTTP.Stream)
+    # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always
+    # have  the right format as it always triggered by after a Response
+    HTTP.setstatus(http, 101)
+    HTTP.setheader(http, "Upgrade" => "websocket")
+    HTTP.setheader(http, "Connection" => "Upgrade")
+    key = HTTP.header(http, "Sec-WebSocket-Key")
+    HTTP.setheader(http, "Sec-WebSocket-Accept" => HTTP.WebSockets.accept_hash(key))
+    HTTP.startwrite(http)
+
+    io = http.stream
+    ws = HTTP.WebSockets.WebSocket(io; server=true)
+
+    # add to list of html files being "watched"
+    # NOTE: this file always exists because the query is generated just after serving it
+    filepath = get_fs_path(http.message.target)
+
+    # if the file is already being viewed, add ws to it (e.g. several tabs)
+    # otherwise add to dict
+    if filepath ∈ keys(WS_VIEWERS)
+        push!(WS_VIEWERS[filepath], ws)
+    else
+        WS_VIEWERS[filepath] = [ws]
+    end
+
     try
-        # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always have
-        # the right format as it always triggered by after a Response
-        HTTP.setstatus(http, 101)
-        HTTP.setheader(http, "Upgrade" => "websocket")
-        HTTP.setheader(http, "Connection" => "Upgrade")
-        key = HTTP.header(http, "Sec-WebSocket-Key")
-        HTTP.setheader(http, "Sec-WebSocket-Accept" => HTTP.WebSockets.accept_hash(key))
-        HTTP.startwrite(http)
-
-        io = http.stream
-        ws = HTTP.WebSockets.WebSocket(io; server=true)
-
-        # add to list of html files being "watched"
-        # NOTE: this file always exists because the query is generated just after serving it
-        filepath = get_fs_path(http.message.target)
-
-        # if the file is already being viewed, add ws to it (e.g. several tabs); otherwise add to dict
-        if filepath ∈ keys(WS_VIEWERS)
-            push!(WS_VIEWERS[filepath], ws)
-        else
-            WS_VIEWERS[filepath] = [ws]
+        # Browsers will drop idle websocket connections so this effectively
+        # forces the websocket to stay open until it's closed by LiveServer (and
+        # not by the browser) upon writing a `update` message on the websocket.
+        # See update_and_close_viewers
+        while isopen(ws.io)
+            sleep(0.1)
         end
-
-        while isopen(ws.io) sleep(0.05) end
-
     catch err
         if isa(err, InterruptException)
-            WS_ERROR[] = true # inform serve() to shut down
+            WS_INTERRUPT[] = true # inform serve() to shut down
         else
             @error "An error happened whilst keeping websocket connection open; continuing. Error was: $err"
         end
-
-    finally
-        return nothing
     end
+    return nothing
 end
 
 
@@ -164,12 +168,6 @@ page and show the changes.
 function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
-    # load the client-side JS code into memory
-    BROWSER_RELOAD_SCRIPT.x = "<!-- browser-reload script, automatically added by the LiveServer.jl -->\n" *
-        "<script type=\"text/javascript\">\n" *
-        String(read(joinpath(dirname(pathof(@__MODULE__)), "client.js"))) *
-        "\n</script>\n"
-
     # set the callback and start the file watcher
     set_callback!(fw, file_changed_callback)
     start(fw)
@@ -192,7 +190,9 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
     # wait until user interrupts the LiveServer (using CTRL+C).
     try
         while true
-            if WS_ERROR.x || fw.status == :interrupted
+            if WS_INTERRUPT.x || fw.status == :interrupted
+                # rethrow the interruption (which may have happened during
+                # the websocket handling or during the file watching)
                 throw(InterruptException())
             end
             sleep(0.1)
@@ -201,17 +201,19 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
         if !isa(err, InterruptException)
             throw(err)
         end
-    finally # close everything that might still be alive
+    finally
+        # cleanup: close everything that might still be alive
         VERBOSE.x && println("\n⋮ shutting down LiveServer")
-
+        # stop the filewatcher
         stop(fw)
         # close any remaining websockets
         for wss ∈ values(WS_VIEWERS), wsi ∈ wss
             close(wsi.io)
         end
+        # empty the dictionary of viewers
         empty!(WS_VIEWERS)
-
-        close(server) # shut down server
+        # shut down the server
+        close(server)
         VERBOSE.x && println("\n✓ LiveServer shut down.")
     end
     return nothing

@@ -59,14 +59,14 @@ tasks that you will try to start.
     @test response.status == 200
     # the browser script should be appended
     @test String(response.body) == replace(read("index.html", String),
-                            "</body>"=>"$(LS.BROWSER_RELOAD_SCRIPT.x)</body>")
+                            "</body>"=>"$(LS.BROWSER_RELOAD_SCRIPT)</body>")
     # if one asks for something incorrect, a 404 should be returned
     # XXX ok so actually an ERROR is thrown, that's not good?
     @test_throws HTTP.ExceptionRequest.StatusError HTTP.get("http://localhost:$port/no.html")
     # if one asks for something without a </body>, it should just be appended
     response = HTTP.get("http://localhost:$port/tmp.html")
     @test response.status == 200
-    @test String(response.body) == read("tmp.html", String) * LS.BROWSER_RELOAD_SCRIPT.x
+    @test String(response.body) == read("tmp.html", String) * LS.BROWSER_RELOAD_SCRIPT
     response = HTTP.get("http://localhost:$port/css/foo.css")
     @test String(response.body) == read("css/foo.css", String)
     @test response.status == 200
@@ -129,4 +129,34 @@ tasks that you will try to start.
     isempty(LS.WS_VIEWERS)
 
     cd(bk)
+end
+
+@testset "Server/ws_tracker testing   " begin
+    # bk = pwd()
+    # cd(mktempdir())
+    # write("ws_TESTFILE.html", "A file") # create a test file to request from
+    # empty!(LS.WS_VIEWERS) # make sure list of viewers is empty to start with
+    #
+    # # start ws server
+    # port = 8765
+    # server = Sockets.listen(port)
+    # task_listen = @async HTTP.listen(Sockets.localhost, port, server=server) do http::HTTP.Stream
+    #     if HTTP.WebSockets.is_upgrade(http.message)
+    #         LS.ws_tracker(http)
+    #     end
+    # end
+    #
+    # # ws client
+    # HTTP.WebSockets.open("ws://127.0.0.1:$port/ws_TESTFILE.html") do ws
+    #     write(ws, "update")
+    #     @test LS.WS_VIEWERS["ws_TESTFILE.html"] isa Vector{HTTP.WebSockets.WebSocket}
+    #     @test length(LS.WS_VIEWERS["ws_TESTFILE.html"]) ==  1
+    #     throw(InterruptException())
+    # end
+    #
+    # # clean up
+    # close(server)
+    # schedule(task_ws, InterruptException(), error=true)
+    # rm("ws_TESTFILE.html")
+    # cd(bk)
 end
