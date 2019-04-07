@@ -1,4 +1,4 @@
-# Internal Documentation
+# Public Interface
 
 Documentation for `LiveServer.jl`'s exported functions
 

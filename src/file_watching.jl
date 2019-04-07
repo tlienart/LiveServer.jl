@@ -49,56 +49,8 @@ abstract type FileWatcher end
 
 A simple file watcher. You can specify a callback function, receiving the path of each file that
 has changed as an `AbstractString`, at construction or later by the API function described below.
-The `sleeptime` is the time waited between to runs of the loop looking for changed files, it is
+The `sleeptime` is the time waited between two runs of the loop looking for changed files, it is
 constrained to be at least 0.05s.
-
-# API functions
-
-It follows an overview on all API functions. Here, `w` is a `SimpleWatcher`.
-The main API functions that are used by the live server, and thus are to be overloaded by external
-file watchers and exported by default:
-
-- `start(w)`: start the watcher
-- `stop(w)`: stop the watcher; preserves the list of watched files and new files can still be added
-using `watch_file!`
-- `set_callback!(w, callback::Function)`: set callback to be executed upon file changes
-- `watch_file!(w, filepath::AbstractString)`: add file to be watched
-
-Further API functions (probably never used in a normal use case), not
-exported by default:
-
-- `isrunning(w)`: check whether the watcher is running
-- `is_watched(w, filepath::AbstractString)`: check whether a file is being watched
-
-# Examples
-```julia
-using LiveServer
-
-# create a file, instantiate file watcher, add the file to be watched
-write("textfile.txt", "A text file.")
-w = SimpleWatcher(f -> println("File changed: \$f"))
-watch_file!(w, "textfile.txt")
-
-# start the watcher, change the file
-start(w)
-write("textfile.txt", "Changed text file.")
-sleep(0.15) # make sure a file-check runs before changing callback
-
-# change the callback function, change the file again, sstop the watcher
-set_callback!(w, f -> println("Changed: \$f"))
-write("textfile.txt", "Second-time changed text file.")
-sleep(0.15)
-stop(w)
-
-# watcher does not add files that do not exist
-watch_file!(w, "this_file_does_not_exist_at.all")
-
-# let's remove the watched file and see if the watcher notices
-rm("textfile.txt")
-start(w)
-sleep(0.15)
-stop(w)
-```
 """
 mutable struct SimpleWatcher <: FileWatcher
     callback::Union{Nothing,Function} # callback function triggered upon file change
@@ -120,7 +72,7 @@ SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1)
 
 
 """
-    file_watcher_task!(w::SimpleWatcher)
+    file_watcher_task!(w::FileWatcher)
 
 Helper function that's spawned as an asynchronous task and checks for file changes. This task
 is normally terminated upon an `InterruptException` and shows a warning in the presence of
@@ -146,8 +98,8 @@ function file_watcher_task!(fw::FileWatcher)
                     fw.callback(wf.path)
                 elseif state == -1
                     # the file does not exist, eventually delete it from list of watched files
-                    VERBOSE.x && println("ℹ [SimpleWatcher]: file '$(wf.path)' does not exist " *
-                                         " (anymore); removing it from list of watched files.")
+                    VERBOSE.x && @info("[FileWatcher]: file '$(wf.path)' does not exist " *
+                                       " (anymore); removing it from list of watched files.")
                     push!(deleted_files, i)
                 end
             end
@@ -238,6 +190,6 @@ Add a file to be watched for changes.
 function watch_file!(fw::FileWatcher, f_path::AbstractString)
     if isfile(f_path) && !is_watched(fw, f_path)
         push!(fw.watchedfiles, WatchedFile(f_path))
-        VERBOSE.x && println("ℹ [SimpleWatcher]: now watching '$f_path'")
+        VERBOSE.x && @info("[FileWatcher]: now watching '$f_path'")
     end
 end
