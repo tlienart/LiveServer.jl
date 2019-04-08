@@ -21,14 +21,14 @@ To install it in Julia ≥ 1.0, use the package manager with
 ## Usage
 
 The main function `LiveServer` exports is `serve` which starts listening to the current folder and makes its content available to a browser.
-The following code creates an example directory and displays its content in a browser:
+The following code creates an example directory and serves it:
 
 ```julia
 julia> using LiveServer
 julia> LiveServer.example() # creates an "example/" folder with some files
 julia> cd("example")
 julia> serve() # starts the local server & the file watching
-✓ LiveServer listening on http://localhost:8000...
+✓ LiveServer listening on http://localhost:8000/ ...
   (use CTRL+C to shut down)
 ```
 
