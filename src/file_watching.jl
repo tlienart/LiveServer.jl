@@ -98,7 +98,7 @@ function file_watcher_task!(fw::FileWatcher)
                     fw.callback(wf.path)
                 elseif state == -1
                     # the file does not exist, eventually delete it from list of watched files
-                    VERBOSE.x && @info("[FileWatcher]: file '$(wf.path)' does not exist " *
+                    VERBOSE[] && @info("[FileWatcher]: file '$(wf.path)' does not exist " *
                                        " (anymore); removing it from list of watched files.")
                     push!(deleted_files, i)
                 end
@@ -190,6 +190,6 @@ Add a file to be watched for changes.
 function watch_file!(fw::FileWatcher, f_path::AbstractString)
     if isfile(f_path) && !is_watched(fw, f_path)
         push!(fw.watchedfiles, WatchedFile(f_path))
-        VERBOSE.x && @info("[FileWatcher]: now watching '$f_path'")
+        VERBOSE[] && @info("[FileWatcher]: now watching '$f_path'")
     end
 end
