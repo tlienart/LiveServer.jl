@@ -7,7 +7,7 @@
 This is a simple and lightweight development web-server written in Julia, based on [HTTP.jl](https://github.com/JuliaWeb/HTTP.jl).
 It has live-reload capability, i.e. when changing files, every browser (tab) currently displaying a corresponding page is automatically refreshed.
 
-LiveServer is inspired from Python's [`http.server`](https://docs.python.org/3/library/http.server.html) (but with live reload) or Node's [`browsersync`](https://www.browsersync.io/) (but much simpler).
+LiveServer is inspired from Python's [`http.server`](https://docs.python.org/3/library/http.server.html) and Node's [`browsersync`](https://www.browsersync.io/).
 
 ## Installation
 
