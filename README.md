@@ -28,7 +28,7 @@ julia> using LiveServer
 julia> LiveServer.example() # creates an "example/" folder with some files
 julia> cd("example")
 julia> serve() # starts the local server & the file watching
-✓ LiveServer listening on http://localhost:8000...
+✓ LiveServer listening on http://localhost:8000/ ...
   (use CTRL+C to shut down)
 ```
 

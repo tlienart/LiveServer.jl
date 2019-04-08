@@ -176,7 +176,7 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
     req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req))
 
     server = Sockets.listen(port)
-    println("✓ LiveServer listening on http://localhost:$port...\n  (use CTRL+C to shut down)")
+    println("✓ LiveServer listening on http://localhost:$port/ ...\n  (use CTRL+C to shut down)")
     @async HTTP.listen(Sockets.localhost, port, server=server, readtimeout=0) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade to websocket
