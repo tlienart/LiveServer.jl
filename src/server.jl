@@ -8,8 +8,11 @@ closing anyway and clients will re-connect from the re-loaded page.
 """
 function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
     foreach(wss) do wsi
-        write(wsi, "update")
-        close(wsi)
+        try
+            write(wsi, "update")
+            close(wsi)
+        catch
+        end
     end
     empty!(wss)
     return nothing
@@ -158,29 +161,28 @@ end
 
 
 """
-    serve(fw::FileWatcher=SimpleWatcher(); port::Int)
+    serve(filewatcher; port, directory)
 
 Main function to start a server at `http://localhost:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
 
-* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) and
-messaging the viewers (web sockets) upon detecting file changes.
+* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) and messaging the viewers (web sockets) upon detecting file changes.
 * `port` is an integer between 8000 (default) and 9000.
+* `directory` specifies where to launch the server if not the current working directory
 
 # Example
 
 ```julia
 LiveServer.example()
-cd("example")
-serve()
+serve(port=8080, dir="example")
 ```
 
-If you open a browser to `http://localhost:8000`, you should see the `index.html` page from the
+If you open a browser to `http://localhost:8080/`, you should see the `index.html` page from the
 `example` folder being rendered. If you change the file, the browser will automatically reload the
 page and show the changes.
 """
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
-               port::Int=8000, dir::String="")
+               port::Int=8000, dir::AbstractString="")
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
@@ -188,7 +190,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
         isdir(dir) || throw(ArgumentError("The specified dir '$dir' is not recognised."))
         CONTENT_DIR[] = dir
     end
-    
+
     start(fw)
 
     # make request handler
