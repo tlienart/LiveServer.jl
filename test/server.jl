@@ -40,12 +40,11 @@ tasks that you will try to start.
     @test_throws ArgumentError serve(port=10000)
 
     # define filewatcher outside so that can follow it
-    fw = LS.SimpleWatcher()
+    fw = LS.SimpleWatcher(LS.file_changed_callback)
     task = @async serve(fw; port=port)
     sleep(0.1) # give it time to get started
 
     # there should be a callback associated with fw now
-    @test fw.callback !== nothing
     @test fw.status == :runnable
     # the filewatcher should be running
     @test LS.isrunning(fw)
