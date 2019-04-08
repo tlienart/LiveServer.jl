@@ -47,7 +47,7 @@ tasks that you will try to start.
     # there should be a callback associated with fw now
     @test fw.status == :runnable
     # the filewatcher should be running
-    @test LS.isrunning(fw)
+    @test LS.is_running(fw)
     # it also should be empty thus far
     @test isempty(fw.watchedfiles)
 

@@ -11,6 +11,8 @@ makedocs(
     pages    = [
         "Home" => "index.md",
         "Manual" => [
+            "Functionalities" => "man/functionalities.md",
+            "Extending LiveServer" => "man/extending_ls.md",
             "Live server"    => "man/server.md",
             "File watching"  => "man/watching.md",
             ],

@@ -38,7 +38,7 @@ include("server.jl")
 """
     verbose(b)
 
-Set the verbosity to either true (showing messages) or false (default).
+Set the verbosity of LiveServer to either true (showing messages upon events) or false (default).
 """
 verbose(b::Bool) = (VERBOSE.x = b)
 
@@ -67,6 +67,7 @@ end
 Can be used when developping a package to run the `docs/make.jl` file from Documenter.jl and
 then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
 directory `[MyPackage].jl` with a subfolder `docs`.
+Note: if you add new `.md` page, you will have to stop and restart `servedocs`.
 """
 function servedocs()
     makejl = joinpath("docs", "make.jl")

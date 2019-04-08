@@ -133,11 +133,11 @@ end
 
 
 """
-    isrunning(fw::FileWatcher)
+    is_running(fw::FileWatcher)
 
 Optional API function to check whether the file watcher is running.
 """
-isrunning(fw::FileWatcher) = (fw.task !== nothing) && !istaskdone(fw.task)
+is_running(fw::FileWatcher) = (fw.task !== nothing) && !istaskdone(fw.task)
 
 
 """
@@ -146,7 +146,7 @@ isrunning(fw::FileWatcher) = (fw.task !== nothing) && !istaskdone(fw.task)
 Start the file watcher and wait to make sure the task has started.
 """
 function start(fw::FileWatcher)
-    isrunning(fw) || (fw.task = @async file_watcher_task!(fw))
+    is_running(fw) || (fw.task = @async file_watcher_task!(fw))
     # wait until task runs to ensure reliable start (e.g. if `stop` called right afterwards)
     while fw.task.state != :runnable
         sleep(0.01)
@@ -162,7 +162,7 @@ added to the file watcher using `watch_file!`. It can be restarted with `start`.
 Returns a `Bool` indicating whether the watcher was running before `stop` was called.
 """
 function stop(fw::FileWatcher)
-    was_running = isrunning(fw)
+    was_running = is_running(fw)
     if was_running
         schedule(fw.task, InterruptException(), error=true)
         # wait until sure the task is done
