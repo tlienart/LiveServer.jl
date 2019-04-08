@@ -179,16 +179,16 @@ If you open a browser to `http://localhost:8000`, you should see the `index.html
 `example` folder being rendered. If you change the file, the browser will automatically reload the
 page and show the changes.
 """
-function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000, dir::String="")
+function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
+               port::Int=8000, dir::String="")
+
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
     if !isempty(dir)
         isdir(dir) || throw(ArgumentError("The specified dir '$dir' is not recognised."))
         CONTENT_DIR[] = dir
     end
-
-    # set the callback and start the file watcher
-    set_callback!(fw, file_changed_callback)
+    
     start(fw)
 
     # make request handler
@@ -236,8 +236,9 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000, dir::String="")
         # shut down the server
         close(server)
         VERBOSE[] && println("\n✓ LiveServer shut down.")
-        # reset the content dir
+        # reset environment variables
         CONTENT_DIR[] = ""
+        WS_INTERRUPT[] = false
     end
     return nothing
 end
