@@ -161,7 +161,7 @@ end
 
 
 """
-    serve(filewatcher; port, directory)
+    serve(filewatcher; port, directory, coreloop)
 
 Main function to start a server at `http://localhost:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
@@ -169,6 +169,7 @@ directory. (See also [`example`](@ref) for an example folder).
 * `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) and messaging the viewers (web sockets) upon detecting file changes.
 * `port` is an integer between 8000 (default) and 9000.
 * `directory` specifies where to launch the server if not the current working directory
+* `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
 
 # Example
 
@@ -182,7 +183,8 @@ If you open a browser to `http://localhost:8080/`, you should see the `index.htm
 page and show the changes.
 """
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
-               port::Int=8000, dir::AbstractString="")
+               port::Int=8000, dir::AbstractString="",
+               coreloopfun::Function=(c,fw)->nothing)
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
@@ -212,12 +214,17 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
 
     # wait until user interrupts the LiveServer (using CTRL+C).
     try
+        counter = 1
         while true
             if WS_INTERRUPT.x || fw.status == :interrupted
                 # rethrow the interruption (which may have happened during
                 # the websocket handling or during the file watching)
                 throw(InterruptException())
             end
+            # do the auxiliary function if there is one (by default this does nothing)
+            coreloopfun(counter, fw)
+            # update the cycle counter and sleep (yields to other threads)
+            counter += 1
             sleep(0.1)
         end
     catch err
