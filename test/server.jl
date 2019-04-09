@@ -40,15 +40,14 @@ tasks that you will try to start.
     @test_throws ArgumentError serve(port=10000)
 
     # define filewatcher outside so that can follow it
-    fw = LS.SimpleWatcher()
+    fw = LS.SimpleWatcher(LS.file_changed_callback)
     task = @async serve(fw; port=port)
     sleep(0.1) # give it time to get started
 
     # there should be a callback associated with fw now
-    @test fw.callback !== nothing
     @test fw.status == :runnable
     # the filewatcher should be running
-    @test LS.isrunning(fw)
+    @test LS.is_running(fw)
     # it also should be empty thus far
     @test isempty(fw.watchedfiles)
 
@@ -131,32 +130,69 @@ tasks that you will try to start.
     cd(bk)
 end
 
+@testset "Server/ws_upgrade testing   " begin
+    io = IOBuffer()
+    s = HTTP.Stream(HTTP.Request("GET", "http://httpbin.org/ip"), io)
+
+    # ws_upgrade
+    ws = LS.ws_upgrade(s)
+
+    @test ws.server
+
+    @test occursin("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept:", String(take!(ws.io)))
+
+    test_string = "blah bLah"
+    write(io, test_string)
+    @test String(take!(ws.io)) == test_string
+    @test isempty(ws.io.data)
+end
+
 @testset "Server/ws_tracker testing   " begin
-    # bk = pwd()
-    # cd(mktempdir())
-    # write("ws_TESTFILE.html", "A file") # create a test file to request from
-    # empty!(LS.WS_VIEWERS) # make sure list of viewers is empty to start with
-    #
-    # # start ws server
-    # port = 8765
-    # server = Sockets.listen(port)
-    # task_listen = @async HTTP.listen(Sockets.localhost, port, server=server) do http::HTTP.Stream
-    #     if HTTP.WebSockets.is_upgrade(http.message)
-    #         LS.ws_tracker(http)
-    #     end
-    # end
-    #
-    # # ws client
-    # HTTP.WebSockets.open("ws://127.0.0.1:$port/ws_TESTFILE.html") do ws
-    #     write(ws, "update")
-    #     @test LS.WS_VIEWERS["ws_TESTFILE.html"] isa Vector{HTTP.WebSockets.WebSocket}
-    #     @test length(LS.WS_VIEWERS["ws_TESTFILE.html"]) ==  1
-    #     throw(InterruptException())
-    # end
-    #
-    # # clean up
-    # close(server)
-    # schedule(task_ws, InterruptException(), error=true)
-    # rm("ws_TESTFILE.html")
-    # cd(bk)
+    bk = pwd()
+    cd(mktempdir())
+    write("test_file.html", "Hello!")
+
+    io = IOBuffer()
+    s = HTTP.Stream(HTTP.Request("GET", "http://localhost:8562/test_file.html"), io)
+
+    fs_path = LS.get_fs_path(s.message.target)
+    @test fs_path == "test_file.html"
+
+    ws = LS.ws_upgrade(s)
+    write(io, "some stuff on the websocket")
+
+    tsk = @async LS.ws_tracker(ws, s.message.target)
+    sleep(0.1)
+
+    # simulate a "good" closure (an event caused a write on the websocket and then closes it)
+    close(ws.io)
+    sleep(0.2)
+    @test istaskdone(tsk)
+    @test !LS.WS_INTERRUPT[]
+
+    # the websocket should have been added to the list
+    @test LS.WS_VIEWERS[fs_path] isa Vector{HTTP.WebSockets.WebSocket}
+    @test length(LS.WS_VIEWERS[fs_path]) == 1
+    @test LS.WS_VIEWERS[fs_path][1] == ws
+
+    io = IOBuffer()
+    s = HTTP.Stream(HTTP.Request("GET", "http://localhost:8562/test_file.html"), io)
+    ws = LS.ws_upgrade(s)
+    write(io, "la di da, dimension C-137")
+    tsk = @async LS.ws_tracker(ws, s.message.target)
+    sleep(0.2)
+
+    # simulate a "bad" closure
+    schedule(tsk, InterruptException(), error=true)
+    sleep(0.1)
+    @test istaskdone(tsk)
+    @test LS.WS_INTERRUPT[]
+
+    @test length(LS.WS_VIEWERS[fs_path]) == 2
+    @test LS.WS_VIEWERS[fs_path][2] == ws
+
+    # cleanup
+    empty!(LS.WS_VIEWERS)
+
+    cd(bk)
 end

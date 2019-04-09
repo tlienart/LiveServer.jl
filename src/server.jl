@@ -8,8 +8,11 @@ closing anyway and clients will re-connect from the re-loaded page.
 """
 function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
     foreach(wss) do wsi
-        write(wsi, "update")
-        close(wsi.io)
+        try
+            write(wsi, "update")
+            close(wsi)
+        catch
+        end
     end
     empty!(wss)
     return nothing
@@ -17,12 +20,12 @@ end
 
 
 """
-    file_changed_callback(filepath::AbstractString)
+    file_changed_callback(f_path::AbstractString)
 
-Function reacting to the change of a file `filepath`. Is set as callback for the file watcher.
+Function reacting to the change of a file `f_path`. Is set as callback for the file watcher.
 """
 function file_changed_callback(f_path::AbstractString)
-    VERBOSE.x && println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
+    VERBOSE[] && println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
     if endswith(f_path, ".html")
         # if html file, update viewers of this file only
         update_and_close_viewers!(WS_VIEWERS[f_path])
@@ -44,6 +47,9 @@ function get_fs_path(req_path::AbstractString)::String
     # first element after the split is **always** "/"
     r_parts = split(HTTP.URI(req_path).path[2:end], "/")
     fs_path = joinpath(r_parts...)
+    if !isempty(CONTENT_DIR[])
+        fs_path = joinpath(CONTENT_DIR[], fs_path)
+    end
     # if no file is specified, try to append `index.html` and see
     endswith(req_path, "/") && (fs_path = joinpath(fs_path, "index.html"))
     # either the result is a valid file path in which case it's returned otherwise ""
@@ -91,15 +97,12 @@ function serve_file(fw, req::HTTP.Request)
     return HTTP.Response(200, content)
 end
 
-
 """
-    ws_tracker(::HTTP.Stream)
+    ws_upgrade(http::HTTP.Stream)
 
-The websocket tracker. Upgrades the HTTP request in the stream to a websocket
-and adds this connection to the viewers in the global dictionary
-`WS_VIEWERS`.
+Upgrade the HTTP request in the stream to a websocket.
 """
-function ws_tracker(http::HTTP.Stream)
+function ws_upgrade(http::HTTP.Stream)
     # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always
     # have  the right format as it always triggered by after a Response
     HTTP.setstatus(http, 101)
@@ -110,22 +113,31 @@ function ws_tracker(http::HTTP.Stream)
     HTTP.startwrite(http)
 
     io = http.stream
-    ws = HTTP.WebSockets.WebSocket(io; server=true)
+    return HTTP.WebSockets.WebSocket(io; server=true)
+end
 
+
+"""
+    ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
+
+Adds the websocket connection to the viewers in the global dictionary `WS_VIEWERS` to the entry
+corresponding to the targeted file.
+"""
+function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
     # add to list of html files being "watched"
     # NOTE: this file always exists because the query is generated just after serving it
-    filepath = get_fs_path(http.message.target)
+    fs_path = get_fs_path(target)
 
     # if the file is already being viewed, add ws to it (e.g. several tabs)
     # otherwise add to dict
-    if filepath ∈ keys(WS_VIEWERS)
-        push!(WS_VIEWERS[filepath], ws)
+    if fs_path ∈ keys(WS_VIEWERS)
+        push!(WS_VIEWERS[fs_path], ws)
     else
-        WS_VIEWERS[filepath] = [ws]
+        WS_VIEWERS[fs_path] = [ws]
     end
 
     try
-        # Browsers will drop idle websocket connections so this effectively
+        # NOTE: browsers will drop idle websocket connections so this effectively
         # forces the websocket to stay open until it's closed by LiveServer (and
         # not by the browser) upon writing a `update` message on the websocket.
         # See update_and_close_viewers
@@ -133,54 +145,65 @@ function ws_tracker(http::HTTP.Stream)
             sleep(0.1)
         end
     catch err
-        if isa(err, InterruptException)
-            WS_INTERRUPT[] = true # inform serve() to shut down
-        else
-            @error "An error happened whilst keeping websocket connection open; continuing. Error was: $err"
-        end
+        # NOTE: there may be several sources of errors caused by the precise moment
+        # at which the user presses CTRL+C and after what events. In an ideal world
+        # we would check that none of these errors have another source but for now
+        # we make the assumption it's always the case (note that it can cause other
+        # errors than InterruptException, for instance it can cause errors due to
+        # stream not being available etc but these all have the same source).
+        # - We therefore do not propagate the error but merely store the information that
+        # there was a forcible interruption of the websocket so that the interruption
+        # can be guaranteed to be propagated.
+        WS_INTERRUPT[] = true
     end
     return nothing
 end
 
 
 """
-    serve(fw::FileWatcher=SimpleWatcher(); port::Int)
+    serve(filewatcher; port, directory)
 
 Main function to start a server at `http://localhost:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
 
-* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) and
-messaging the viewers (web sockets) upon detecting file changes.
+* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) and messaging the viewers (web sockets) upon detecting file changes.
 * `port` is an integer between 8000 (default) and 9000.
+* `directory` specifies where to launch the server if not the current working directory
 
 # Example
 
 ```julia
 LiveServer.example()
-cd("example")
-serve()
+serve(port=8080, dir="example")
 ```
 
-If you open a browser to `http://localhost:8000`, you should see the `index.html` page from the
+If you open a browser to `http://localhost:8080/`, you should see the `index.html` page from the
 `example` folder being rendered. If you change the file, the browser will automatically reload the
 page and show the changes.
 """
-function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
+function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
+               port::Int=8000, dir::AbstractString="")
+
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
 
-    # set the callback and start the file watcher
-    set_callback!(fw, file_changed_callback)
+    if !isempty(dir)
+        isdir(dir) || throw(ArgumentError("The specified dir '$dir' is not recognised."))
+        CONTENT_DIR[] = dir
+    end
+
     start(fw)
 
     # make request handler
     req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req))
 
     server = Sockets.listen(port)
-    println("✓ LiveServer listening on http://localhost:$port...\n  (use CTRL+C to shut down)")
+    println("✓ LiveServer listening on http://localhost:$port/ ...\n  (use CTRL+C to shut down)")
     @async HTTP.listen(Sockets.localhost, port, server=server, readtimeout=0) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade to websocket
-            ws_tracker(http)
+            ws = ws_upgrade(http)
+            # add to list of viewers and keep open until written to
+            ws_tracker(ws, http.message.target)
         else
             # handle HTTP request
             HTTP.handle(req_handler, http)
@@ -203,7 +226,7 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
         end
     finally
         # cleanup: close everything that might still be alive
-        VERBOSE.x && println("\n⋮ shutting down LiveServer")
+        VERBOSE[] && println("\n⋮ shutting down LiveServer")
         # stop the filewatcher
         stop(fw)
         # close any remaining websockets
@@ -214,7 +237,10 @@ function serve(fw::FileWatcher=SimpleWatcher(); port::Int=8000)
         empty!(WS_VIEWERS)
         # shut down the server
         close(server)
-        VERBOSE.x && println("\n✓ LiveServer shut down.")
+        VERBOSE[] && println("\n✓ LiveServer shut down.")
+        # reset environment variables
+        CONTENT_DIR[] = ""
+        WS_INTERRUPT[] = false
     end
     return nothing
 end

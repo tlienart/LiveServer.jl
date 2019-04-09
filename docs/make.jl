@@ -10,9 +10,12 @@ makedocs(
     authors  = "Jonas Asprion, Thibaut Lienart",
     pages    = [
         "Home" => "index.md",
-        # "Manual" => [
-        #     "Quick start"          => "man/quickstart.md",
-        #     ],
+        "Manual" => [
+            "Functionalities" => "man/functionalities.md",
+            "Extending LiveServer" => "man/extending_ls.md",
+            "Live server"    => "man/server.md",
+            "File watching"  => "man/watching.md",
+            ],
         "Library" => [
             "Public"    => "lib/public.md",
             "Internals" => "lib/internals.md",

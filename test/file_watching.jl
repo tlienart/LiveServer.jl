@@ -69,15 +69,15 @@ end
     @test LS.is_watched(sw, file1)
     @test LS.is_watched(sw, file2)
 
-    # isrunning?
-    @test !LS.isrunning(sw)
+    # is_running?
+    @test !LS.is_running(sw)
 
     LS.start(sw)
     sleep(0.001)
 
-    @test LS.isrunning(sw)
+    @test LS.is_running(sw)
     @test LS.stop(sw)
-    @test !LS.isrunning(sw)
+    @test !LS.is_running(sw)
 
     #
     # modify callback to something that will eventually throw an error
