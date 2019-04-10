@@ -1,8 +1,9 @@
 """
-Provides the [`serve`](@ref) command which runs a live server, and a simple
-file-watcher [`SimpleWatcher`](@ref) which can also be used independently.
-The main API functions of the latter are [`start`](@ref), [`stop`](@ref),
-[`set_callback`](@ref), and [`watch_file`](@ref).
+    LiveServer
+
+Provides the [`serve`](@ref) command which runs a live server, and a simple file-watcher
+[`SimpleWatcher`](@ref) which can also be used independently. The main API functions of the latter
+are [`start`](@ref), [`stop`](@ref), [`set_callback!`](@ref), and [`watch_file!`](@ref).
 
 `LiveServer` depends on the `HTTP.jl` package.
 """

@@ -4,7 +4,9 @@ makedocs(
     modules = [LiveServer],
     format = Documenter.HTML(
         # Use clean URLs, unless built as a "local" build
-        prettyurls = !("local" in ARGS)
+        prettyurls = !("local" in ARGS),
+        # custom CSS
+        assets = ["assets/custom.css"]
         ),
     sitename = "LiveServer.jl",
     authors  = "Jonas Asprion, Thibaut Lienart",
@@ -13,17 +15,12 @@ makedocs(
         "Manual" => [
             "Functionalities" => "man/functionalities.md",
             "Extending LiveServer" => "man/extending_ls.md",
-            "Live server"    => "man/server.md",
-            "File watching"  => "man/watching.md",
             ],
         "Library" => [
             "Public"    => "lib/public.md",
             "Internals" => "lib/internals.md",
             ],
-        ], # end pages
-    ##
-    ## custom CSS if required
-    # assets = ["assets/custom.css"],
+        ], # end page
 )
 
 deploydocs(

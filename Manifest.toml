@@ -31,9 +31,9 @@ version = "0.7.0"
 
 [[Documenter]]
 deps = ["Base64", "DocStringExtensions", "InteractiveUtils", "JSON", "LibGit2", "Logging", "Markdown", "Pkg", "REPL", "Random", "Test", "Unicode"]
-git-tree-sha1 = "04d40966cddd2ea5d227e7130484b57ac4718596"
+git-tree-sha1 = "11ba1460e7429eddc2a71f912cd5b9a66fbd8cf5"
 uuid = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
-version = "0.22.1"
+version = "0.22.2"
 
 [[FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"

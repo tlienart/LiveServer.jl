@@ -141,7 +141,7 @@ is_running(fw::FileWatcher) = (fw.task !== nothing) && !istaskdone(fw.task)
 
 
 """
-    start(w::FileWatcher)
+    start(fw::FileWatcher)
 
 Start the file watcher and wait to make sure the task has started.
 """

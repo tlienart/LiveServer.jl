@@ -1,3 +1,0 @@
-# Live server
-
-[coming soon...]

@@ -30,7 +30,7 @@ LiveServer.SimpleWatcher
 
 Functions related to a `FileWatcher`
 
-```
+```@docs
 LiveServer.start
 LiveServer.stop
 LiveServer.set_callback!
