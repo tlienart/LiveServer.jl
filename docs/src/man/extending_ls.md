@@ -30,31 +30,41 @@ Let's assume for now that you want to define `CustomWatcher <: FileWatcher`.
 
 ### Fields
 
-Your `CustomWatcher` will need to have at least the same fields as `SimpleWatcher` i.e.:
+The only field that is _required_ by the rest of the code is
+
+* `status`: a symbol that must be set to `:interrupted` upon errors in the file watching task
+
+Likely you will want to also have some of the same fields as `SimpleWatcher` i.e.:
 
 * `callback`: the callback function to be triggered upon an event
 * `task`: the asynchronous file watching task
-* `sleeptime`: the time to wait before going over the list of `watchedfiles` to check for events, you won't want this to be less than `0.05`
 * `watchedfiles`: the vector of [`LiveServer.WatchedFile`](@ref)
-* `status`: a symbol that must be set to `:interrupted` upon errors in the file watching task
+* `sleeptime`: the time to wait before going over the list of `watchedfiles` to check for events, you won't want this to be less than `0.05`
+
+Finally you can of course add any extra field you want.
 
 ### Methods
 
 Subsequently, your `CustomWatcher` may redefine some or all of the following methods (those that aren't will use the default method defined for all `FileWatcher`).
 
-* `file_watcher_task!`: this is the loop that goes over the watched files, will check for an event (modifications) and trigger the callback function; this will be the `CustomWatcher.task`. If errors happen in this asynchronous task, the `CustomWatcher.status` should be set to `:interrupted` so that the information can be propagated.
-* `set_callback!`: a helper function to bind a watcher with a callback function.
-* `is_running`: a helper function to check whether `CustomWatcher.task` is done.
-* `start`: start `@async file_watcher_task!`
-* `stop`: stop the `CustomWatcher.task`
-* `is_watched`: check if a file is watched by the watcher.
+The methods that are _required_ by the rest of the code are
+
+* `start(::FileWatcher)` and `stop(::FileWatcher)` to start and stop the watcher,
+* `watch_file!(::FileWatcher, ::AbstractString)` to consider an additional file.
+
+You may also want to re-define existing methods such as
+
+* `file_watcher_task!(::FileWatcher)`: the loop that goes over the watched files, will check for an event (modifications) and trigger the callback function; this will be the `CustomWatcher.task`. If errors happen in this asynchronous task, the `CustomWatcher.status` should be set to `:interrupted` so that the information can be propagated.
+* `set_callback!(::FileWatcher, ::Function)`: a helper function to bind a watcher with a callback function.
+* `is_running(::FileWatcher)`: a helper function to check whether `CustomWatcher.task` is done.
+* `is_watched(::FileWatcher, ::AbstractString)`: check if a file is watched by the watcher.
 
 ## Why not use `FileWatching`?
 
 You may be aware of the [`FileWatching`](https://docs.julialang.org/en/v1/stdlib/FileWatching/index.html) module in `Base` and may wonder why we did not just use that one.
 The main reasons we decided not to use it are:
 
-* it triggers **a lot**: where our system only triggers the callback function upon an actual file change (i.e. you modified the file and saved the modification), `FileWatching` is much more sensitive (for instance it will trigger when you _open_ the file),
+* it triggers **a lot**: where our system only triggers the callback function upon _saving_ a file (e.g. you modified the file and saved the modification), `FileWatching` is much more sensitive (for instance it will trigger when you _open_ the file),
 * it is somewhat harder to make your own custom mechanisms to fire page reloads.
 
 So ultimately, our system can be seen as a poor man's implementation of `FileWatching` that is robust, simple and easy to customise.
