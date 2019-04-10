@@ -7,7 +7,7 @@ using Sockets
 # https://github.com/JuliaWeb/HTTP.jl/issues/405
 using HTTP
 
-export serve, servedocs, verbose
+export serve, servedocs
 
 #
 # Environment variables

@@ -11,7 +11,7 @@ There are two key types related to file watching:
 
 Any file watcher will be a subtype of the abstract type [`LiveServer.FileWatcher`](@ref) with, for instance, the default watcher being [`LiveServer.SimpleWatcher`](@ref).
 
-### Watched file
+### WatchedFile
 
 ```@docs
 LiveServer.WatchedFile
@@ -19,16 +19,16 @@ LiveServer.has_changed
 LiveServer.set_unchanged!
 ```
 
-### File watcher
+### FileWatcher
 
-Key types
+####  Key types
 
 ```@docs
 LiveServer.FileWatcher
 LiveServer.SimpleWatcher
 ```
 
-Functions related to a `FileWatcher`
+####  Functions related to a `FileWatcher`
 
 ```@docs
 LiveServer.start
@@ -38,7 +38,7 @@ LiveServer.watch_file!
 LiveServer.file_watcher_task!
 ```
 
-Additional helper functions:
+####  Additional helper functions:
 
 ```@docs
 LiveServer.is_running
@@ -47,8 +47,7 @@ LiveServer.is_watched
 
 ## Live serving
 
-The exported [`serve`](@ref) and [`verbose`](@ref) functions are not stated
-again.
+The exported [`serve`](@ref) and [`verbose`](@ref) functions are not stated again.
 The `serve` method instantiates a listener (`HTTP.listen`) in an asynchronous task.
 The callback upon an incoming HTTP stream decides whether it is a standard HTTP request or a request for an upgrade to a websocket connection.
 The former case is handled by [`LiveServer.serve_file`](@ref), the latter by
@@ -61,15 +60,23 @@ LiveServer.ws_tracker
 LiveServer.file_changed_callback
 ```
 
-Additional helper functions:
+#### Additional helper functions:
 
 ```@docs
 LiveServer.get_fs_path
 LiveServer.update_and_close_viewers!
 ```
 
+#### Helper functions associated with `servedocs`
+
+```@docs
+LiveServer.servedocs_callback
+LiveServer.scan_docs!
+```
+
 ## Miscellaneous
 
 ```@docs
 LiveServer.example
+LiveServer.verbose
 ```
