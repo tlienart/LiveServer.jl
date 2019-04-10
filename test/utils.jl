@@ -20,12 +20,14 @@
     # do not pass on Julia 1.0 Travis. Given that I can't be bothered to figure out why, I just
     # add a version check here.
     if VERSION >= v"1.1"
-        sleep(0.1)
+        sleep(FS_WAIT + 0.2)
         # after the first pass, `makejl` should have been called once (first pass)
         @test parse(Int, read("counterfile", String)) == 1
         # if we modify `index.md`, it should trigger a second pass
         write(joinpath("docs", "src", "index.md"), "# Documentation!")
-        sleep(0.1)
+
+        sleep(FS_WAIT + 0.2)
+
         @test parse(Int, read("counterfile", String)) == 2
     end
     schedule(task, InterruptException(), error=true)
