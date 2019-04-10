@@ -164,7 +164,12 @@ Returns a `Bool` indicating whether the watcher was running before `stop` was ca
 function stop(fw::FileWatcher)
     was_running = is_running(fw)
     if was_running
-        schedule(fw.task, InterruptException(), error=true)
+        # this may fail as the task may get interrupted in between which would lead to
+        # an error "schedule Task not runnable"
+        try
+            schedule(fw.task, InterruptException(), error=true)
+        catch
+        end
         # wait until sure the task is done
         while !istaskdone(fw.task)
             sleep(0.01)

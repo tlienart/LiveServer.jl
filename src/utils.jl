@@ -9,8 +9,15 @@ Note: if you add new `.md` page, you will have to stop and restart `servedocs`.
 function servedocs()
     makejl = joinpath("docs", "make.jl")
 
-    make_and_callback(fp) = (splitext(fp)[2]==".md" && include(makejl); file_changed_callback(fp))
+    make_and_callback(fp) = begin
+        if fp == makejl || splitext(fp)[2] == ".md"
+            include(makejl)
+            file_changed_callback(fp)
+        end
+    end
+
     docwatcher = SimpleWatcher(make_and_callback)
+    push!(docwatcher.watchedfiles, WatchedFile(makejl))
 
     if isdir("docs") && isfile(makejl)
         # add all *md files in `docs/src` to watched files
