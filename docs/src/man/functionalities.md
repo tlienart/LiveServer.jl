@@ -21,8 +21,10 @@ julia> serve()
 which will make the content of the folder available to be viewed in a browser.
 
 You can specify the port that the server should listen to (default is `8000`) as well as the directory to serve if not the current one.
+There is also a `verbose` argument if you want to see messages being displayed on file changes and
+connections.
 
-You can also specify the `filewatcher` which allows to define what will trigger the messages to the client and ultimately cause the active browser tabs to reload.
+More interestingly, you can specify the `filewatcher` which allows to define what will trigger the messages to the client and ultimately cause the active browser tabs to reload.
 By default, it is file modifications that will trigger page reloads but you may want to write your own file watcher to perform additional actions upon file changes or trigger browser reload differently.
 
 See the section on [Extending LiveServer](@ref) for more informations.
@@ -66,7 +68,6 @@ julia> servedocs()
 This will execute `make.jl` (a pass of `Documenter.jl`) before live serving the resulting `docs/build` folder with `LiveServer.jl`.
 Upon modifying a `.md` file (e.g. updating `docs/src/index.md`), the `make.jl` will be applied and the corresponding changes propagated to active tabs (e.g. a tab watching `http://localhost:8000/index.html`)
 
-**Notes**:
-* the first pass of Documenter.jl is relatively slow but subsequent passes are quite fast so that the workflow with `Documenter.jl`+`LiveServer.jl` does not suffer from large delays,
-* you can stop the procedure using `CTRL+C`,
-* if you add **new** files to the `src/` folder, you will have to stop and restart `servedocs` otherwise the file will not be considered.
+!!! note
+
+    the first pass of Documenter.jl takes a few seconds but subsequent passes are quite fast so that the workflow with `Documenter.jl`+`LiveServer.jl` is pretty quick.
