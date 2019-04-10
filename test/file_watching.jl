@@ -5,9 +5,6 @@ const file2 = joinpath(tmpdir, "file2")
 write(file1, ".")
 write(file2, ".")
 
-# depending on the OS, the resolution of stat(f).mtime can be over a second.
-const FS_WAIT = 1.1
-
 @testset "Watcher/WatchedFile struct  " begin
     wf1 = LS.WatchedFile(file1)
     wf2 = LS.WatchedFile(file2)
