@@ -5,11 +5,8 @@ const file2 = joinpath(tmpdir, "file2")
 write(file1, ".")
 write(file2, ".")
 
-# on Apple < High Sierra, (i.e. non APFS), the resolution of
-# stat(f).mtime is over a second.
-# also the resolution of time() is much higher so need to sleep
-# there too! it's a bit crazy but ¯\_(ツ)_/¯
-const FS_WAIT = ifelse(Sys.isapple(), 1.1, 0.2)
+# depending on the OS, the resolution of stat(f).mtime can be over a second.
+const FS_WAIT = 1.1
 
 @testset "Watcher/WatchedFile struct  " begin
     wf1 = LS.WatchedFile(file1)

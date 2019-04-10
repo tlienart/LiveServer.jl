@@ -14,9 +14,11 @@
 
     mkdir(joinpath("docs", "build"))
 
+    sleep(0.5)
+
     task = @async servedocs()
 
-    sleep(1.1)
+    sleep(0.5)
 
     # after the first pass, `makejl` should have been called once (first pass)
     @test parse(Int, read("counterfile", String)) == 1
