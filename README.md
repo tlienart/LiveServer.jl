@@ -32,4 +32,24 @@ julia> serve() # starts the local server & the file watching
   (use CTRL+C to shut down)
 ```
 
-Open a Browser and go to `http://localhost:8000` to see the content being rendered; try modifying files (e.g. `index.html`) to see the changes being rendered immediately in the browser.
+Open a Browser and go to `http://localhost:8000/` to see the content being rendered; try modifying files (e.g. `index.html`) and watch the changes being rendered immediately in the browser.
+
+### Serve docs
+
+A derived function from `serve` that will be convenient to Julia package developpers is `servedocs` which runs `Documenter` along with `LiveServer` to render your docs and will track and render any modifications to your docs.
+This can make docs development significantly easier.
+
+Assuming you are in `directory/to/YourPackage.jl` and that you have a `docs/` folder as prescribed by [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl), just run:
+
+```julia
+julia> using LiveServer
+julia> servedocs()
+[ Info: SetupBuildDirectory: setting up build directory.
+[ Info: ExpandTemplates: expanding markdown templates.
+...
+└ Deploying: ✘
+✓ LiveServer listening on http://localhost:8000/ ...
+  (use CTRL+C to shut down)
+```
+
+Open a browser and go to `http://localhost:8000/` to see your docs being rendered; try modifying files (e.g. `docs/index.md`) and watch the changes being rendered in the browser.

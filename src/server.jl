@@ -60,20 +60,21 @@ end
 """
     serve_file(fw, req::HTTP.Request)
 
-Handler function for serving files. This takes a file watcher, to which
-files to be watched can be added, and a request (e.g. a path entered in a tab of the
-browser), and converts it to the appropriate file system path. If the path corresponds to a HTML
-file, it will inject the reloading script (see file `client.js`) at the end
-of its body, i.e. directly before the </body> tag.
-All files served are added to the file watcher, which is responsible
-to check whether they're already watched or not.
-Finally the file is served via a 200 (successful) response. If the file does
-not exist, a response with status 404 and message "404 not found" is sent.
+Handler function for serving files. This takes a file watcher, to which files to be watched can be
+added, and a request (e.g. a path entered in a tab of the browser), and converts it to the
+appropriate file system path. If the path corresponds to a HTML file, it will inject the reloading
+script (see file `client.js`) at the end of its body, i.e. directly before the </body> tag.
+All files served are added to the file watcher, which is responsible to check whether they're
+already watched or not. Finally the file is served via a 200 (successful) response. If the file
+does not exist, a response with status 404 and message "404 not found" is sent.
 """
 function serve_file(fw, req::HTTP.Request)
     fs_path = get_fs_path(req.target)
     # in case the path was not resolved, return a 404
-    isempty(fs_path) && return HTTP.Response(404, "404: file not found.")
+    isempty(fs_path) && return HTTP.Response(404, "404: file not found. The most likely reason " *
+                                    "is that the URL you entered has a mistake in it or that " *
+                                    "the requested page has been deleted or renamed. Check " *
+                                    "also that the server is still running.")
 
     content = read(fs_path, String)
     # if html, add the browser-sync script to it
@@ -183,10 +184,11 @@ If you open a browser to `http://localhost:8080/`, you should see the `index.htm
 page and show the changes.
 """
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
-               port::Int=8000, dir::AbstractString="",
+               port::Int=8000, dir::AbstractString="", verbose::Bool=false,
                coreloopfun::Function=(c,fw)->nothing)
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
+    setverbose(verbose)
 
     if !isempty(dir)
         isdir(dir) || throw(ArgumentError("The specified dir '$dir' is not recognised."))
