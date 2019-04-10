@@ -16,7 +16,7 @@
 
     task = @async servedocs()
 
-    sleep(0.5)
+    sleep(1.1)
 
     # after the first pass, `makejl` should have been called once (first pass)
     @test parse(Int, read("counterfile", String)) == 1
