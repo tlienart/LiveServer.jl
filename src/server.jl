@@ -188,7 +188,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
                coreloopfun::Function=(c,fw)->nothing)
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
-    verbose(verbose)
+    setverbose(verbose)
 
     if !isempty(dir)
         isdir(dir) || throw(ArgumentError("The specified dir '$dir' is not recognised."))

@@ -47,7 +47,7 @@ LiveServer.is_watched
 
 ## Live serving
 
-The exported [`serve`](@ref) and [`verbose`](@ref) functions are not stated again.
+The exported [`serve`](@ref) and [`setverbose`](@ref) functions are not stated again.
 The `serve` method instantiates a listener (`HTTP.listen`) in an asynchronous task.
 The callback upon an incoming HTTP stream decides whether it is a standard HTTP request or a request for an upgrade to a websocket connection.
 The former case is handled by [`LiveServer.serve_file`](@ref), the latter by
@@ -78,5 +78,5 @@ LiveServer.scan_docs!
 
 ```@docs
 LiveServer.example
-LiveServer.verbose
+LiveServer.setverbose
 ```

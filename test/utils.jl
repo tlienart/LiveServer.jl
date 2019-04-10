@@ -67,17 +67,17 @@ end
     @test length(dw.watchedfiles) == 3 # index, index2, make
     @test endswith(dw.watchedfiles[1].path, "make.jl")
     @test endswith(dw.watchedfiles[2].path, "index.md")
-    @test endswith(dw.watchedfiles[3].path, "index2.md")  
+    @test endswith(dw.watchedfiles[3].path, "index2.md")
 
     cd(bk)
 end
 
 @testset "Misc utils                  " begin
-    verbose(false)
+    LS.setverbose(false)
     @test !LS.VERBOSE.x
-    verbose(true)
+    LS.setverbose(true)
     @test LS.VERBOSE.x
-    verbose(false) # we don't want the tests to show lots of stuff
+    LS.setverbose(false) # we don't want the tests to show lots of stuff
 
     bk = pwd()
     cd(mktempdir())
