@@ -4,7 +4,8 @@
 Can be used when developping a package to run the `docs/make.jl` file from Documenter.jl and
 then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
 directory `[MyPackage].jl` with a subfolder `docs`.
-Note: if you add new `.md` page, you will have to stop and restart `servedocs`.
+Note: if you add new pages, you will have to stop and restart `servedocs` after also modifying
+your `make.jl` to refer to the new page.
 """
 function servedocs()
     makejl = joinpath("docs", "make.jl")
