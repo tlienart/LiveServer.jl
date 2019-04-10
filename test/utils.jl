@@ -30,7 +30,7 @@
 
         @test parse(Int, read("counterfile", String)) == 2
     end
-    schedule(task, InterruptException(), error=true)
+    istaskdone(task) || schedule(task, InterruptException(), error=true)
     cd(bk)
 end
 
