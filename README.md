@@ -15,8 +15,11 @@ The package is currently unregistered.
 To install it in Julia ≥ 1.0, use the package manager with
 
 ```julia-repl
-] add https://github.com/asprionj/LiveServer.jl
+pkg> add https://github.com/tlienart/HTTP.jl
+pkg> add https://github.com/asprionj/LiveServer.jl
 ```
+
+**NOTE**: the first line will install our patched fork of `HTTP.jl` which helps with proper server shutdown; see also [this issue](https://github.com/asprionj/LiveServer.jl/issues/48).
 
 ## Usage
 
