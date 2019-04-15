@@ -39,10 +39,8 @@ version = "0.22.2"
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[HTTP]]
-deps = ["Base64", "Dates", "Distributed", "IniFile", "JSON", "MbedTLS", "Sockets", "Test"]
-git-tree-sha1 = "4a2beedabe7e627e8cea0d3db5a82d1222897dac"
-repo-rev = "master"
-repo-url = "https://github.com/tlienart/HTTP.jl"
+deps = ["Base64", "Dates", "Distributed", "IniFile", "MbedTLS", "Random", "Sockets", "Test"]
+git-tree-sha1 = "25db0e3f27bd5715814ca7e4ad22025fdcf5cc6e"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 version = "0.8.0"
 
