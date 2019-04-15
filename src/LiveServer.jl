@@ -2,9 +2,7 @@ module LiveServer
 
 # from stdlib
 using Sockets
-# the only dependency. NOTE: we use our own patched branch of HTTP.jl for the moment
-# to guarantee that all tasks are properly shut down upon closing the server see
-# https://github.com/JuliaWeb/HTTP.jl/issues/405
+# the only dependency (see the patch in http_patch.jl)
 using HTTP
 
 export serve, servedocs
@@ -23,6 +21,11 @@ const CONTENT_DIR = Ref{String}("")
 const WS_VIEWERS = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
 # keep track of whether an interruption happened while processing a websocket
 const WS_INTERRUPT = Base.Ref{Bool}(false)
+
+#
+# HTTP patch
+#
+include("http_patch.jl")
 
 #
 # Core
