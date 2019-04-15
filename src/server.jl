@@ -22,7 +22,7 @@ end
 """
     file_changed_callback(f_path::AbstractString)
 
-Function reacting to the change of a file `f_path`. Is set as callback for the file watcher.
+Function reacting to the change of the file at `f_path`. Is set as callback for the file watcher.
 """
 function file_changed_callback(f_path::AbstractString)
     VERBOSE[] && println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
@@ -63,10 +63,10 @@ end
 Handler function for serving files. This takes a file watcher, to which files to be watched can be
 added, and a request (e.g. a path entered in a tab of the browser), and converts it to the
 appropriate file system path. If the path corresponds to a HTML file, it will inject the reloading
-script (see file `client.js`) at the end of its body, i.e. directly before the </body> tag.
+`<script>` (see file `client.html`) at the end of its body, i.e. directly before the `</body>` tag.
 All files served are added to the file watcher, which is responsible to check whether they're
 already watched or not. Finally the file is served via a 200 (successful) response. If the file
-does not exist, a response with status 404 and message "404 not found" is sent.
+does not exist, a response with status 404 and an according message is sent.
 """
 function serve_file(fw, req::HTTP.Request)
     fs_path = get_fs_path(req.target)
@@ -162,21 +162,22 @@ end
 
 
 """
-    serve(filewatcher; port, directory, coreloop)
+    serve(filewatcher; port=8000, dir="", verbose=false, coreloop=(c,fw)->nothing)
 
 Main function to start a server at `http://localhost:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
 
-* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) and messaging the viewers (web sockets) upon detecting file changes.
+* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) (which also is the default) and messaging the viewers (via WebSockets) upon detecting file changes.
 * `port` is an integer between 8000 (default) and 9000.
-* `directory` specifies where to launch the server if not the current working directory
+* `dir` specifies where to launch the server if not the current working directory.
+* `verbose` is a boolean switch to make the server print information about file changes and connections.
 * `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
 
 # Example
 
 ```julia
 LiveServer.example()
-serve(port=8080, dir="example")
+serve(port=8080, dir="example", verbose=true)
 ```
 
 If you open a browser to `http://localhost:8080/`, you should see the `index.html` page from the
