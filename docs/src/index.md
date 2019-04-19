@@ -7,11 +7,10 @@ LiveServer is inspired from Python's [`http.server`](https://docs.python.org/3/l
 
 ## Installation
 
-The package is currently un-registered.
 In Julia ≥ 1.0, you can add it using the Package Manager writing
 
 ```julia-repl
-pkg> add https://github.com/asprionj/LiveServer.jl
+pkg> add LiveServer
 ```
 
 ## Usage
