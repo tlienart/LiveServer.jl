@@ -64,8 +64,8 @@ You may also want to re-define existing methods such as
 
 ## Using a custom `coreloopfun`
 
-In some circumstances, your code may be using specific data structures or be such that it wouldn't easily play well with a `FileWatcher` mechanism.
-In that case, you may want to also specify a `coreloopfun` which is called continuously in the [`serve`](@ref) main function.
+In some circumstances, your code may be using specific data structures or be such that it would not easily play well with a `FileWatcher` mechanism.
+In that case, you may want to also specify a `coreloopfun` which is called continuously from within the [`serve`](@ref) main loop.
 
 The code of [`serve`](@ref) is essentially structured as follows:
 
@@ -76,7 +76,7 @@ function serve(...)
     # ...
     try
         counter = 1
-        while true
+        while true # the main loop
             # ...
             coreloopfun(counter, filewatcher)
             counter += 1
@@ -91,11 +91,11 @@ function serve(...)
 end
 ```
 
-And so the `coreloopfun` is called continuously while the server is running.
+That is, the `coreloopfun` is called roughly every 100 ms while the server is running.
 By default the `coreloopfun` does nothing.
 
-An example where using this could be relevant is if your code handles the processing of files from one format (say markdown) to HTML, that the FileWatcher would look at when the HTML files are produced but that you would want another process to keep track of the markdown files and process them as they should be.
-This is for instance what is used in [JuDoc.jl](https://github.com/tlienart/JuDoc.jl).
+An example where this mechanism could be used is when your code handles the processing of files from one format (say markdown) to HTML. You want the `FileWatcher` to trigger browser reloads whenever new versions of these HTML files are produced. However, at the same time, you want another process to keep track of the markdown files and re-process them as they change. You can hook this second watcher into the core loop of `LiveServer` using the `coreloopfun`.
+An example for this use case is [JuDoc.jl](https://github.com/tlienart/JuDoc.jl).
 
 ## Why not use `FileWatching`?
 
