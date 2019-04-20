@@ -28,6 +28,9 @@ More interestingly, you can optionally specify the `filewatcher` (the only
 regular argument) which allows to define what will trigger the messages to the client and ultimately cause the active browser tabs to reload.
 By default, it is file modifications that will trigger page reloads but you may want to write your own file watcher to perform additional actions upon file changes or trigger browser reload differently.
 
+Finally, you can specify a function `coreloopfun` which is called continuously while the server is running.
+There may be circumstances where adjusting `coreloopfun` helps to complement the tuning of a `FileWatcher`.
+
 See the section on [Extending LiveServer](@ref) for more informations.
 
 ## `servedocs`

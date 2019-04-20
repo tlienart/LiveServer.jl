@@ -2,7 +2,8 @@
 
 There may be circumstances where you will want the page-reloading to be triggered by your own mechanism.
 As a very simple example, you may want to display your own custom messages every time a file is updated.
-This page explains how to extend `SimpleWatcher <: FileWatcher` and, more generally, how to write your own `FileWatcher`
+This page explains how to extend `SimpleWatcher <: FileWatcher` and, more generally, how to write your own `FileWatcher`.
+We also explain how in some circumstances it may be easier to feed a custom `coreloopfun` to [`serve`](@ref) rather than writing a custom callback.
 
 ## Using `SimpleWatcher` with a custom callback
 
@@ -60,6 +61,41 @@ You may also want to re-define existing methods such as
 * `set_callback!(::FileWatcher, ::Function)`: a helper function to bind a watcher with a callback function.
 * `is_running(::FileWatcher)`: a helper function to check whether `CustomWatcher.task` is done.
 * `is_watched(::FileWatcher, ::AbstractString)`: check if a file is watched by the watcher.
+
+## Using a custom `coreloopfun`
+
+In some circumstances, your code may be using specific data structures or be such that it wouldn't easily play well with a `FileWatcher` mechanism.
+In that case, you may want to also specify a `coreloopfun` which is called continuously in the [`serve`](@ref) main function.
+
+The code of [`serve`](@ref) is essentially structured as follows:
+
+```julia
+function serve(...)
+    # ...
+    @async HTTP.listen(...) # handles messages with the client (browser)
+    # ...
+    try
+        counter = 1
+        while true
+            # ...
+            coreloopfun(counter, filewatcher)
+            counter += 1
+            sleep(0.1)
+        end
+    catch err
+        # ...
+    finally
+        # cleanup ...
+    end
+    return nothing
+end
+```
+
+And so the `coreloopfun` is called continuously while the server is running.
+By default the `coreloopfun` does nothing.
+
+An example where using this could be relevant is if your code handles the processing of files from one format (say markdown) to HTML, that the FileWatcher would look at when the HTML files are produced but that you would want another process to keep track of the markdown files and process them as they should be.
+This is for instance what is used in [JuDoc.jl](https://github.com/tlienart/JuDoc.jl).
 
 ## Why not use `FileWatching`?
 

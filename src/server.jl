@@ -162,7 +162,7 @@ end
 
 
 """
-    serve(filewatcher; port=8000, dir="", verbose=false, coreloop=(c,fw)->nothing)
+    serve(filewatcher; port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing)
 
 Main function to start a server at `http://localhost:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
