@@ -61,7 +61,7 @@ With `servedocs` however, you can edit the `.md` files in your `docs/src` and se
 To launch it, navigate to `YourPackage.jl/` and simply
 
 ```julia-repl
-julia> using LiveServer
+julia> using YourPackage, LiveServer
 julia> servedocs()
 ```
 
