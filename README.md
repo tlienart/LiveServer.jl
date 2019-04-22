@@ -41,7 +41,7 @@ This can make docs development significantly easier.
 Assuming you are in `directory/to/YourPackage.jl` and that you have a `docs/` folder as prescribed by [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl), just run:
 
 ```julia
-julia> using LiveServer
+julia> using YourPackage, LiveServer
 julia> servedocs()
 [ Info: SetupBuildDirectory: setting up build directory.
 [ Info: ExpandTemplates: expanding markdown templates.

@@ -37,7 +37,7 @@ This instantaneous feedback makes writing docs significantly easier and faster.
 Assuming you are in `directory/to/YourPackage.jl` and that you have a `docs/` folder as prescribed by `Documenter`, just run:
 
 ```julia
-julia> using LiveServer
+julia> using YourPackage, LiveServer
 julia> servedocs()
 [ Info: SetupBuildDirectory: setting up build directory.
 [ Info: ExpandTemplates: expanding markdown templates.
