@@ -90,7 +90,7 @@ end
 """
     setverbose(b)
 
-Set the verbosity of LiveServer to either true (showing messages upon events) or false (default).
+Set the verbosity of LiveServer to either `true` (showing messages upon events) or `false` (default).
 """
 setverbose(b::Bool) = (VERBOSE.x = b)
 

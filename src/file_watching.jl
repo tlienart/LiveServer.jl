@@ -48,7 +48,7 @@ abstract type FileWatcher end
     SimpleWatcher([callback]; sleeptime::Float64=0.1) <: FileWatcher
 
 A simple file watcher. You can specify a callback function, receiving the path of each file that
-has changed as an `AbstractString`, at construction or later by the API function described below.
+has changed as an `AbstractString`, at construction or later by the API function [`set_callback!`](@ref).
 The `sleeptime` is the time waited between two runs of the loop looking for changed files, it is
 constrained to be at least 0.05s.
 """
@@ -60,13 +60,6 @@ mutable struct SimpleWatcher <: FileWatcher
     status::Symbol                    # set to :interrupted as appropriate (caught by server)
 end
 
-"""
-    SimpleWatcher([callback]; sleeptime)
-
-Instantiate a new `SimpleWatcher` with an optional callback triggered upon file change.
-The `sleeptime` argument can be used to determine how often to check for file change (default is
-every 0.1 second and minimum is 0.05).
-"""
 SimpleWatcher(callback::Union{Nothing,Function}=nothing; sleeptime::Float64=0.1) =
     SimpleWatcher(callback, nothing, max(0.05, sleeptime), Vector{WatchedFile}(), :runnable)
 
@@ -120,7 +113,7 @@ end
 """
     set_callback!(fw::FileWatcher, callback::Function)
 
-Mandatory API function to set or change the callback function being executed upon a file change.
+Set or change the callback function being executed upon a file change.
 Can be "hot-swapped", i.e. while the file watcher is running.
 """
 function set_callback!(fw::FileWatcher, callback::Function)
@@ -135,7 +128,7 @@ end
 """
     is_running(fw::FileWatcher)
 
-Optional API function to check whether the file watcher is running.
+Checks whether the file watcher is running.
 """
 is_running(fw::FileWatcher) = (fw.task !== nothing) && !istaskdone(fw.task)
 
@@ -182,7 +175,7 @@ end
 """
     is_watched(fw::FileWatcher, f_path::AbstractString)
 
-Check whether a file `f_path` is being watched by file watcher `fw`.
+Checks whether the file specified by `f_path` is being watched.
 """
 is_watched(fw::FileWatcher, f_path::AbstractString) = any(wf -> wf.path == f_path, fw.watchedfiles)
 

@@ -55,6 +55,7 @@ Finally, [`LiveServer.file_changed_callback`](@ref) is the function passed to th
 
 ```@docs
 LiveServer.serve_file
+LiveServer.ws_upgrade
 LiveServer.ws_tracker
 LiveServer.file_changed_callback
 ```
