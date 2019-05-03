@@ -76,9 +76,11 @@ function serve_file(fw, req::HTTP.Request)
                                     "the requested page has been deleted or renamed. Check " *
                                     "also that the server is still running.")
 
+    ext = last(splitext(fs_path))[2:end]
     content = read(fs_path, String)
+
     # if html, add the browser-sync script to it
-    if splitext(fs_path)[2] == ".html"
+    if ext == "html"
         end_body_match = match(r"</body>", content)
         if end_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
@@ -93,9 +95,18 @@ function serve_file(fw, req::HTTP.Request)
             content = take!(io)
         end
     end
-    # add this file to the file watcher, send content to client
+
+    # build the response with appropriate mime type (this is inspired from Mux
+    # https://github.com/JuliaWeb/Mux.jl/blob/master/src/examples/files.jl)
+    headers = ["Content-Type" => get(MIME_TYPES, ext, "application/octet-stream")]
+    resp = Response(content)
+    isempty(headers) || (resp.headers = HTTP.mkheaders(headers))
+
+    # add the file to the file watcher
     watch_file!(fw, fs_path)
-    return HTTP.Response(200, content)
+
+    # return the response
+    return resp
 end
 
 """
