@@ -10,3 +10,9 @@ FileWatching = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[compat]
+julia = "^1.0.0"
+Documenter = "^0.22.0"
+Crayons = "^4.0.0"
+HTTP = "^0.8.0"
