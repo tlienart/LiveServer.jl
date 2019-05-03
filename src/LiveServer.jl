@@ -31,6 +31,7 @@ include("http_patch.jl")
 # Core
 #
 
+include("mimetypes.jl")
 include("file_watching.jl")
 include("server.jl")
 
