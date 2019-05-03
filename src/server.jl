@@ -80,7 +80,7 @@ function serve_file(fw, req::HTTP.Request)
     content = read(fs_path, String)
 
     # if html, add the browser-sync script to it
-    if splitext(fs_path)[2] == "html"
+    if ext == "html"
         end_body_match = match(r"</body>", content)
         if end_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
