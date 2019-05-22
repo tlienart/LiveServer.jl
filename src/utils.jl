@@ -31,7 +31,7 @@ function servedocs_callback(fp::AbstractString, vwf::Vector{WatchedFile}, makejl
     # changes from docs/src create change in docs/build which trigger a pass which
     # regenerates files in docs/build etc...
     if ismakejl || occursin(joinpath("docs", "src"), fp)
-        include(makejl)
+        Main.include(makejl)
         file_changed_callback(fp)
     end
     return nothing
@@ -74,7 +74,7 @@ function servedocs()
     makejl = scan_docs!(docwatcher)
 
     # trigger a first pass of Documenter
-    include(makejl)
+    Main.include(makejl)
 
     # note the `docs/build` exists here given that if we're here it means the documenter
     # pass did not error and therefore that a docs/build has been generated.
