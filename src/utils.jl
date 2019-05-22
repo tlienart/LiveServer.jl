@@ -31,7 +31,7 @@ function servedocs_callback(fp::AbstractString, vwf::Vector{WatchedFile}, makejl
     # changes from docs/src create change in docs/build which trigger a pass which
     # regenerates files in docs/build etc...
     if ismakejl || occursin(joinpath("docs", "src"), fp)
-        include(makejl)
+        Main.include(makejl)
         file_changed_callback(fp)
     end
     return nothing
@@ -60,13 +60,15 @@ function scan_docs!(dw::SimpleWatcher)
 end
 
 """
-    servedocs()
+    servedocs(; verbose=false)
 
-Can be used when developping a package to run the `docs/make.jl` file from Documenter.jl and
+Can be used when developing a package to run the `docs/make.jl` file from Documenter.jl and
 then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
 directory `[MyPackage].jl` with a subfolder `docs`.
+
+* `verbose` is a boolean switch to make the server print information about file changes and connections.
 """
-function servedocs()
+function servedocs(; verbose::Bool=false)
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
     set_callback!(docwatcher, fp->servedocs_callback(fp, docwatcher.watchedfiles, makejl))
@@ -74,11 +76,11 @@ function servedocs()
     makejl = scan_docs!(docwatcher)
 
     # trigger a first pass of Documenter
-    include(makejl)
+    Main.include(makejl)
 
     # note the `docs/build` exists here given that if we're here it means the documenter
     # pass did not error and therefore that a docs/build has been generated.
-    serve(docwatcher, dir=joinpath("docs", "build"))
+    serve(docwatcher, dir=joinpath("docs", "build"), verbose=verbose)
 
     return nothing
 end
