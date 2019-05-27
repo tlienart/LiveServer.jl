@@ -38,12 +38,14 @@ function servedocs_callback(fp::AbstractString, vwf::Vector{WatchedFile}, makejl
 end
 
 """
-    scan_docs!(dw::SimpleWatcher)
+    scan_docs!(dw::SimpleWatcher, files=String[])
 
 Scans the `docs/` folder in order to recover the path to all files that have to be watched and add
-those files to `dw.watchedfiles`. The function returns the path to `docs/make.jl`.
+those files to `dw.watchedfiles`. The function returns the path to `docs/make.jl`. A list of
+file paths can also be given for files that should be watched in addition to the content of
+`docs/src`. This is useful in the context of Literate.jl.
 """
-function scan_docs!(dw::SimpleWatcher)
+function scan_docs!(dw::SimpleWatcher, files::Vector{String}=String[])
     src = joinpath("docs", "src")
     if !(isdir("docs") && isdir(src))
         @error "I didn't find a docs/ or docs/src/ folder."
@@ -56,26 +58,31 @@ function scan_docs!(dw::SimpleWatcher)
              push!(dw.watchedfiles, WatchedFile(joinpath(root, file)))
          end
     end
+    for fpath ∈ files
+        isfile(fpath) && push!(dw.watchedfiles, WatchedFile(fpath))
+    end
     return makejl
 end
 
 """
-    servedocs(; verbose=false)
+    servedocs(; verbose=false, files=[])
 
 Can be used when developing a package to run the `docs/make.jl` file from Documenter.jl and
 then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
 directory `[MyPackage].jl` with a subfolder `docs`.
 
-* `verbose` is a boolean switch to make the server print information about file changes and connections.
+* `verbose` is a boolean switch to make the server print information about file changes and
+connections.
+* `files` is a vector of file paths that can be watched in addition of the content of `docs/src`.
 """
-function servedocs(; verbose::Bool=false)
+function servedocs(; verbose::Bool=false, files::Vector{String}=String[])
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
     set_callback!(docwatcher, fp->servedocs_callback(fp, docwatcher.watchedfiles, makejl))
 
-    makejl = scan_docs!(docwatcher)
+    makejl = scan_docs!(docwatcher, files)
 
-    # trigger a first pass of Documenter
+    # trigger a first pass of Documenter (or Literate)
     Main.include(makejl)
 
     # note the `docs/build` exists here given that if we're here it means the documenter
