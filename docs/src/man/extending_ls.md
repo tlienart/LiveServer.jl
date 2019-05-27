@@ -21,7 +21,7 @@ As an example of a custom callback, here is a simple modified callback mechanism
 custom_callback(fp::AbstractString) = (println("Hello!"); file_changed_callback(fp))
 ```
 
-A more sophisticated customised callback is the one that is used in [`servedocs`](@ref) (see [`LiveServer.servedocs_callback`](@ref)).
+A more sophisticated customised callback is the one that is used in [`servedocs`](@ref) (see [`LiveServer.servedocs_callback!`](@ref)).
 The callback has a different behaviour depending on which file is modified and does a few extra steps before signalling the viewers to reload appropriate pages.
 
 ## Writing your own `FileWatcher`
