@@ -69,7 +69,7 @@ function scan_docs!(dw::SimpleWatcher, literate::String="")
             spath = splitext(wf.path)
             spath[2] == ".jl" || continue
             k = findfirst(e -> splitext(e.path) == (spath[1], ".md"), dw.watchedfiles)
-            isnothing(k) || push!(remove, k)
+            k === nothing || push!(remove, k)
         end
     else
         # assumption is that the scripts are in `literate/` and that the generated markdown goes
@@ -84,7 +84,7 @@ function scan_docs!(dw::SimpleWatcher, literate::String="")
             spath[2] == ".jl" || continue
             path = replace(spath[1], Regex("^$literate") => joinpath("docs", "src"))
             k = findfirst(e -> splitext(e.path) == (path, ".md"), dw.watchedfiles)
-            isnothing(k) || push!(remove, k)
+            k === nothing || push!(remove, k)
         end
     end
     deleteat!(dw.watchedfiles, remove)
