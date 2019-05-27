@@ -70,7 +70,7 @@ LiveServer.update_and_close_viewers!
 #### Helper functions associated with `servedocs`
 
 ```@docs
-LiveServer.servedocs_callback
+LiveServer.servedocs_callback!
 LiveServer.scan_docs!
 ```
 

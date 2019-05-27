@@ -14,7 +14,8 @@ makedocs(
         "Home" => "index.md",
         "Manual" => [
             "Functionalities" => "man/functionalities.md",
-            "Extending LiveServer" => "man/extending_ls.md"
+            "Extending LiveServer" => "man/extending_ls.md",
+            "LiveServer + Literate" => "man/ls+lit.md"
             ],
         "Library" => [
             "Public"    => "lib/public.md",
