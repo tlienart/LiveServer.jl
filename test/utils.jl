@@ -60,14 +60,18 @@ end
     write(joinpath("docs", "src", "index2.md"), "Random file")
     write(joinpath("docs", "make.jl"), "1+1")
 
+    mkdir("alternate")
+    write(joinpath("alternate", "blah.md"), "1+1")
+
     dw = LS.SimpleWatcher()
-    makejl = LS.scan_docs!(dw)
+    makejl = LS.scan_docs!(dw, [joinpath("alternate", "blah.md")])
 
     @test makejl == joinpath("docs", "make.jl")
-    @test length(dw.watchedfiles) == 3 # index, index2, make
+    @test length(dw.watchedfiles) == 4 # index, index2, blah.md make
     @test endswith(dw.watchedfiles[1].path, "make.jl")
     @test endswith(dw.watchedfiles[2].path, "index.md")
     @test endswith(dw.watchedfiles[3].path, "index2.md")
+    @test endswith(dw.watchedfiles[4].path, "blah.md")
 
     cd(bk)
 end
