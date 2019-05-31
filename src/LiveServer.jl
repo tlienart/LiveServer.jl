@@ -11,33 +11,28 @@ export serve, servedocs
 # Environment variables
 #
 
-# see `client.html`
+"""Script to insert on a page for live reload, see `client.html`."""
 const BROWSER_RELOAD_SCRIPT = read(joinpath(dirname(pathof(LiveServer)), "client.html"), String)
-# whether to display messages while serving or not, see `verbose()`
+
+"""Whether to display messages while serving or not, see [`verbose`](@ref)."""
 const VERBOSE = Ref{Bool}(false)
-# the folder to watch, either the current one or a specified one.4
+
+"""The folder to watch, either the current one or a specified one."""
 const CONTENT_DIR = Ref{String}("")
-# list of files being tracked by WebSocket connections, interrupt catched in ws handler?
+
+"""List of files being tracked with WebSocket connections."""
 const WS_VIEWERS = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
-# keep track of whether an interruption happened while processing a websocket
+
+"""Keep track of whether an interruption happened while processing a websocket."""
 const WS_INTERRUPT = Base.Ref{Bool}(false)
 
 #
-# HTTP patch
-#
-include("http_patch.jl")
-
-#
-# Core
+# Functions
 #
 
 include("mimetypes.jl")
 include("file_watching.jl")
 include("server.jl")
-
-#
-# Utilities
-#
 
 include("utils.jl")
 
