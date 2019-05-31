@@ -1,7 +1,7 @@
 name = "LiveServer"
 uuid = "16fef848-5104-11e9-1b77-fb7a48bbb589"
 authors = ["Jonas Asprion <jonas.asprion@gmx.ch", "Thibaut Lienart <tlienart@me.com>"]
-version = "0.2.0"
+version = "0.2.1"
 
 [deps]
 Crayons = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
