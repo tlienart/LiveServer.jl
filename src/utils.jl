@@ -17,7 +17,11 @@ function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::Abst
         empty!(dw.watchedfiles)
         scan_docs!(dw, literate)
     end
-    if splitext(fp)[2] ∈ (".md", ".jl")
+    fext = splitext(fp)[2]
+    P1 = fext ∈ (".md", ".jl")
+    # the second condition is for CSS files, we want to track it but not the output
+    # if we track the output then there's an infinite loop being triggered (see docstring)
+    if P1 || (fext == ".css" && !occursin(joinpath("docs", "build", "assets"), fp))
         Main.include(makejl)
         file_changed_callback(fp)
     end

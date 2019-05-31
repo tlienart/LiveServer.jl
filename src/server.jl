@@ -99,7 +99,7 @@ function serve_file(fw, req::HTTP.Request)
     # build the response with appropriate mime type (this is inspired from Mux
     # https://github.com/JuliaWeb/Mux.jl/blob/master/src/examples/files.jl)
     headers = ["Content-Type" => get(MIME_TYPES, ext, "application/octet-stream")]
-    resp = Response(content)
+    resp = HTTP.Response(content)
     isempty(headers) || (resp.headers = HTTP.mkheaders(headers))
 
     # add the file to the file watcher
@@ -214,7 +214,8 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
 
     server = Sockets.listen(port)
     println("✓ LiveServer listening on http://localhost:$port/ ...\n  (use CTRL+C to shut down)")
-    @async HTTP.listen(Sockets.localhost, port, server=server, readtimeout=0) do http::HTTP.Stream
+    @async HTTP.listen(Sockets.localhost, port;
+                       server=server, readtimeout=0, reuse_limit=0) do http::HTTP.Stream
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade to websocket
             ws = ws_upgrade(http)
