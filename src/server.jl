@@ -216,6 +216,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     println("✓ LiveServer listening on http://localhost:$port/ ...\n  (use CTRL+C to shut down)")
     @async HTTP.listen(Sockets.localhost, port;
                        server=server, readtimeout=0, reuse_limit=0) do http::HTTP.Stream
+        # reuse_limit=0 ensures that there won't be an error if killing and restarting the server.
         if HTTP.WebSockets.is_upgrade(http.message)
             # upgrade to websocket
             ws = ws_upgrade(http)
