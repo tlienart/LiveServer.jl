@@ -55,6 +55,12 @@ end
 @testset "utils/servedocs-scan-docs   " begin
     bk = pwd()
     cd(mktempdir())
+    dw = LS.SimpleWatcher()
+
+    # error if there's no docs/ folder
+    @test_throws SystemError LS.scan_docs!(dw, "docs")
+
+    empty!(dw.watchedfiles)
 
     mkdir("docs")
     mkdir(joinpath("docs", "src"))
@@ -65,7 +71,6 @@ end
     mkdir(joinpath("docs", "lit"))
     write(joinpath("docs", "lit", "index.jl"), "1+1")
 
-    dw = LS.SimpleWatcher()
     makejl = LS.scan_docs!(dw, joinpath("docs", "lit"))
 
     @test makejl == joinpath("docs", "make.jl")

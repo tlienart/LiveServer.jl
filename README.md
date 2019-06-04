@@ -52,3 +52,5 @@ julia> servedocs()
 ```
 
 Open a browser and go to `http://localhost:8000/` to see your docs being rendered; try modifying files (e.g. `docs/index.md`) and watch the changes being rendered in the browser.
+
+**Note**: this works with [Literate.jl](https://github.com/fredrikekre/Literate.jl) as well. See [the docs](https://asprionj.github.io/LiveServer.jl/dev/man/ls+lit/).
