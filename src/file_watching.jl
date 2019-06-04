@@ -165,7 +165,7 @@ function stop(fw::FileWatcher)
         end
         # wait until sure the task is done
         while !istaskdone(fw.task)
-            sleep(0.01)
+            sleep(0.1)
         end
     end
     return was_running
