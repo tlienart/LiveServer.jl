@@ -224,7 +224,15 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
             ws_tracker(ws, http.message.target)
         else
             # handle HTTP request
-            HTTP.handle(req_handler, http)
+            try
+                HTTP.handle(req_handler, http)
+            catch e
+                if isa(e, IOError)
+                    # this is an error with HTTP.jl, see #392
+                else
+                    throw(e)
+                end
+            end
         end
     end
 
