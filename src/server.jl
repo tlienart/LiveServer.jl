@@ -45,7 +45,7 @@ was not found.
 """
 function get_fs_path(req_path::AbstractString)::String
     # first element after the split is **always** "/"
-    r_parts = split(HTTP.URI(req_path).path[2:end], "/")
+    r_parts = HTTP.URIs.unescapeuri.(split(HTTP.URI(req_path).path[2:end], "/"))
     fs_path = joinpath(r_parts...)
     if !isempty(CONTENT_DIR[])
         fs_path = joinpath(CONTENT_DIR[], fs_path)
@@ -79,8 +79,12 @@ function serve_file(fw, req::HTTP.Request)
     ext = last(splitext(fs_path))[2:end]
     content = read(fs_path, String)
 
+    # build the response with appropriate mime type (this is inspired from Mux
+    # https://github.com/JuliaWeb/Mux.jl/blob/master/src/examples/files.jl)
+    mime = get(MIME_TYPES, ext, "application/octet-stream")
+
     # if html, add the browser-sync script to it
-    if ext == "html"
+    if mime in ["text/html", "application/xhtml+xml"]
         end_body_match = match(r"</body>", content)
         if end_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
@@ -96,9 +100,7 @@ function serve_file(fw, req::HTTP.Request)
         end
     end
 
-    # build the response with appropriate mime type (this is inspired from Mux
-    # https://github.com/JuliaWeb/Mux.jl/blob/master/src/examples/files.jl)
-    headers = ["Content-Type" => get(MIME_TYPES, ext, "application/octet-stream")]
+    headers = ["Content-Type" => mime]
     resp = HTTP.Response(content)
     isempty(headers) || (resp.headers = HTTP.mkheaders(headers))
 

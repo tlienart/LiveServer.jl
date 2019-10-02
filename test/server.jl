@@ -6,6 +6,8 @@
     @test LS.get_fs_path(req) == ""
     req = "/test/dummies/index.html"
     @test LS.get_fs_path(req) == "test/dummies/index.html"
+    req = "/test/dummies/r%C3%A9sum%C3%A9/"
+    @test LS.get_fs_path(req) == "test/dummies/résumé/index.html"
     cd(bk)
 end
 
