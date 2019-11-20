@@ -53,7 +53,11 @@ function get_fs_path(req_path::AbstractString)::String
     # if no file is specified, try to append `index.html` and see
     endswith(req_path, "/") && (fs_path = joinpath(fs_path, "index.html"))
     # either the result is a valid file path in which case it's returned otherwise ""
-    return ifelse(isfile(fs_path), fs_path, "")
+    if isfile(fs_path) || isdir(fs_path)
+        return fs_path
+    else
+        return ""
+    end
 end
 
 
@@ -75,6 +79,11 @@ function serve_file(fw, req::HTTP.Request)
                                     "is that the URL you entered has a mistake in it or that " *
                                     "the requested page has been deleted or renamed. Check " *
                                     "also that the server is still running.")
+
+    # Respond with 301 if the path is a directory
+    if isdir(fs_path)
+        return HTTP.Response(301, ["Location" => req.target * "/"])
+    end
 
     ext = last(splitext(fs_path))[2:end]
     content = read(fs_path, String)
