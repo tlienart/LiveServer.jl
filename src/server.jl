@@ -82,7 +82,7 @@ function serve_file(fw, req::HTTP.Request)
 
     # Respond with 301 if the path is a directory
     if isdir(fs_path)
-        return HTTP.Response(301, ["Location" => joinpath(req.target, "")])
+        return HTTP.Response(301, ["Location" => req.target * "/"])
     end
 
     ext = last(splitext(fs_path))[2:end]
