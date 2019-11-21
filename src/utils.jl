@@ -13,7 +13,7 @@ function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::Abst
                              literate::String="", skip_dir::String="")
     # ignore things happening in build (generated files etc)
     startswith(fp, joinpath("docs", "build")) && return nothing
-    startswith(fp, skip_dir) && return nothing
+    isempty(skip_dir) || startswith(fp, skip_dir) && return nothing
     # if the file that was changed is the `make.jl` file, assume that maybe new files are # referenced and so refresh the vector of watched files as a result.
     if fp == makejl
         # it's easier to start from scratch (takes negligible time)
