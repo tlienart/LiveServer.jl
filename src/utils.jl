@@ -97,7 +97,7 @@ end
 
 
 """
-    servedocs(; verbose=false, literate="")
+    servedocs(; verbose=false, literate="", doc_env=false)
 
 Can be used when developing a package to run the `docs/make.jl` file from Documenter.jl and
 then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
@@ -107,8 +107,9 @@ directory `[MyPackage].jl` with a subfolder `docs`.
 connections.
 * `literate` is the path to the folder containing the literate scripts, if left empty, it will be
 assumed that they are in `docs/src`.
+* `doc_env` is a boolean switch to make the server start by activating the doc environment or not (i.e. the `Project.toml` in `docs/`).
 """
-function servedocs(; verbose::Bool=false, literate::String="")
+function servedocs(; verbose::Bool=false, literate::String="", doc_env=false)
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
     set_callback!(docwatcher, fp->servedocs_callback!(docwatcher, fp, makejl, literate))
@@ -116,12 +117,18 @@ function servedocs(; verbose::Bool=false, literate::String="")
     # Retrieve files to watch
     makejl = scan_docs!(docwatcher, literate)
 
+    if doc_env
+        Pkg.activate("docs/Project.toml")
+    end
     # trigger a first pass of Documenter (& possibly Literate)
     Main.include(makejl)
 
     # note the `docs/build` exists here given that if we're here it means the documenter
     # pass did not error and therefore that a docs/build has been generated.
     serve(docwatcher, dir=joinpath("docs", "build"), verbose=verbose)
+    if doc_env
+        Pkg.activate()
+    end
     return nothing
 end
 

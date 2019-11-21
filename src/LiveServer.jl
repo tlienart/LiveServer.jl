@@ -1,7 +1,7 @@
 module LiveServer
 
 # from stdlib
-using Sockets
+using Sockets, Pkg
 # the only dependency (see the patch in http_patch.jl)
 using HTTP
 

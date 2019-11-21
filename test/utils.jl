@@ -58,6 +58,8 @@ end
     dw = LS.SimpleWatcher()
 
     # error if there's no docs/ folder
+    cray = Crayon(foreground=:cyan, bold=true)
+    println(cray, "\n⚠ Deliberately causing an error to be displayed and handled...\n")
     @test_throws SystemError LS.scan_docs!(dw, "docs")
 
     empty!(dw.watchedfiles)
