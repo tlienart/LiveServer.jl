@@ -10,7 +10,14 @@ triggered to regenerate the documents, subsequently the LiveServer will render t
 in `docs/build`.
 """
 function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::AbstractString,
-                             literate::String="")
+                             literate::String="", skip_dirs::Vector{String}=String[])
+    # ignore things happening in build (generated files etc)
+    startswith(fp, joinpath("docs", "build")) && return nothing
+    if !isempty(skip_dirs)
+        for dir in skip_dirs
+            startswith(fp, dir) && return nothing
+        end
+    end
     # if the file that was changed is the `make.jl` file, assume that maybe new files are # referenced and so refresh the vector of watched files as a result.
     if fp == makejl
         # it's easier to start from scratch (takes negligible time)
@@ -18,10 +25,10 @@ function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::Abst
         scan_docs!(dw, literate)
     end
     fext = splitext(fp)[2]
-    P1 = fext ∈ (".md", ".jl")
+    P1 = fext ∈ (".md", ".jl", ".css")
     # the second condition is for CSS files, we want to track it but not the output
     # if we track the output then there's an infinite loop being triggered (see docstring)
-    if P1 || (fext == ".css" && !occursin(joinpath("docs", "build", "assets"), fp))
+    if P1
         Main.include(makejl)
         file_changed_callback(fp)
     end
@@ -97,31 +104,47 @@ end
 
 
 """
-    servedocs(; verbose=false, literate="")
+    servedocs(; verbose=false, literate="", doc_env=false)
 
 Can be used when developing a package to run the `docs/make.jl` file from Documenter.jl and
 then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
 directory `[MyPackage].jl` with a subfolder `docs`.
 
-* `verbose` is a boolean switch to make the server print information about file changes and
+* `verbose=false` is a boolean switch to make the server print information about file changes and
 connections.
-* `literate` is the path to the folder containing the literate scripts, if left empty, it will be
+* `literate=""` is the path to the folder containing the literate scripts, if left empty, it will be
 assumed that they are in `docs/src`.
+* `doc_env=false` is a boolean switch to make the server start by activating the doc environment or not (i.e. the `Project.toml` in `docs/`).
+* `skip_dir=""` is a subpath of `docs/` where modifications should not trigger the generation of the docs, this is useful for instance if you're using Weave and Weave generates some files in `docs/src/examples` in which case you should give `skip_dir=joinpath("docs","src","examples")`.
+* `skip_dirs=[]` same as `skip_dir`  but for a vector of such dirs. Takes precedence over `skip_dir`.
 """
-function servedocs(; verbose::Bool=false, literate::String="")
+function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=false,
+                     skip_dir::String="", skip_dirs::Vector{String}=String[])
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
-    set_callback!(docwatcher, fp->servedocs_callback!(docwatcher, fp, makejl, literate))
+
+    if isempty(skip_dirs) && !isempty(skip_dir)
+        skip_dirs = [skip_dir]
+    end
+
+    set_callback!(docwatcher,
+                  fp->servedocs_callback!(docwatcher, fp, makejl, literate, skip_dirs))
 
     # Retrieve files to watch
     makejl = scan_docs!(docwatcher, literate)
 
+    if doc_env
+        Pkg.activate("docs/Project.toml")
+    end
     # trigger a first pass of Documenter (& possibly Literate)
     Main.include(makejl)
 
     # note the `docs/build` exists here given that if we're here it means the documenter
     # pass did not error and therefore that a docs/build has been generated.
     serve(docwatcher, dir=joinpath("docs", "build"), verbose=verbose)
+    if doc_env
+        Pkg.activate()
+    end
     return nothing
 end
 

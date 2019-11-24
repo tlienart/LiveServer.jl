@@ -79,3 +79,21 @@ Upon modifying a `.md` file (e.g. updating `docs/src/index.md`), the `make.jl` w
     The first pass collects all information in the code (i.e. docstrings), while
     subsequent passes only consider changes in the markdown (`.md`) files. This
     restriction is necessary to achieve a fast update behavior.
+
+### Additional keywords
+
+The `servedocs` function now takes two extra keywords which may, in some cases, make your life easier:
+
+* `doc_env=false`, if set to true, the `Project.toml` available in `docs/` will be activated (note 1),
+* `skip_dir=""`, indicates a directory to skip when looking at the docs folder for change, this can be useful when using packages like Literate or Weave that may generate files inside your `src` folder.
+
+Note that in  both cases these keywords  are there for your convenience but would be best not used. See also the discussion in [this issue](https://github.com/asprionj/LiveServer.jl/issues/85).
+In the first case, doing
+
+```
+julia --project=docs -e 'using LiveServer; servedocs()'
+```
+
+is more robust.
+
+In the second case, it would be best if you made sure  that  all generated files are saved in `docs/build/...`.
