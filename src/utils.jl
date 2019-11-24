@@ -10,10 +10,14 @@ triggered to regenerate the documents, subsequently the LiveServer will render t
 in `docs/build`.
 """
 function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::AbstractString,
-                             literate::String="", skip_dir::String="")
+                             literate::String="", skip_dirs::Vector{String}=String[])
     # ignore things happening in build (generated files etc)
     startswith(fp, joinpath("docs", "build")) && return nothing
-    isempty(skip_dir) || startswith(fp, skip_dir) && return nothing
+    if !isempty(skip_dirs)
+        for dir in skip_dirs
+            startswith(fp, dir) && return nothing
+        end
+    end
     # if the file that was changed is the `make.jl` file, assume that maybe new files are # referenced and so refresh the vector of watched files as a result.
     if fp == makejl
         # it's easier to start from scratch (takes negligible time)
@@ -112,12 +116,19 @@ connections.
 assumed that they are in `docs/src`.
 * `doc_env=false` is a boolean switch to make the server start by activating the doc environment or not (i.e. the `Project.toml` in `docs/`).
 * `skip_dir=""` is a subpath of `docs/` where modifications should not trigger the generation of the docs, this is useful for instance if you're using Weave and Weave generates some files in `docs/src/examples` in which case you should give `skip_dir=joinpath("docs","src","examples")`.
+* `skip_dirs=[]` same as `skip_dir`  but for a vector of such dirs. Takes precedence over `skip_dir`.
 """
 function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=false,
-                     skip_dir::String="")
+                     skip_dir::String="", skip_dirs::Vector{String}=String[])
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
-    set_callback!(docwatcher, fp->servedocs_callback!(docwatcher, fp, makejl, literate, skip_dir))
+
+    if isempty(skip_dirs) && !isempty(skip_dir)
+        skip_dirs = [skip_dir]
+    end
+
+    set_callback!(docwatcher,
+                  fp->servedocs_callback!(docwatcher, fp, makejl, literate, skip_dirs))
 
     # Retrieve files to watch
     makejl = scan_docs!(docwatcher, literate)
