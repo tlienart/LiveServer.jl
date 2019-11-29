@@ -83,88 +83,20 @@ What the for loop does is simple: it loops over the files in the folder where it
 
 ## Complete example
 
-Here's a step-by-step example to get started which should help put all the pieces together.
-
-Let's start by creating a dummy repo
-
-```julia-repl
-pkg> generate testlit
-julia> cd("testlit")
-pkg> activate testlit
-pkg> add Documenter Literate LiveServer
-pkg> dev .
-```
-
-add a `docs/` folder with the appropriate structure so that the `testlit` folder ends up like
-
-```
-.
-├── Manifest.toml
-├── Project.toml
-├── docs
-│   ├── literate
-│   │   └── man
-│   │       └── pg1.jl
-│   ├── make.jl
-│   └── src
-│       ├── index.md
-│       └── man
-└── src
-    └── testlit.jl
-```
-
-where the file `pg1.jl` contains
-
-```julia
-# # Test literate
-
-# We can include some code like so:
-
-f(x) = x^5
-f(5)
-```
-
-the file `index.md` contains
-
-```
-# Test
-
-A link to the [other page](/man/pg1.md)
-```
-
-and the file `make.jl` contains
-
-```julia
-using Documenter, Literate
-
-src = joinpath(@__DIR__, "src")
-lit = joinpath(@__DIR__, "literate")
-
-for (root, _, files) ∈ walkdir(lit), file ∈ files
-    splitext(file)[2] == ".jl" || continue
-    ipath = joinpath(root, file)
-    opath = splitdir(replace(ipath, lit=>src))[1]
-    Literate.markdown(ipath, opath)
-end
-
-makedocs(
-    sitename = "testlit",
-    modules = [testlit],
-    pages = ["Home" => "index.md",
-             "Other page" => "man/pg1.md"]
-    )
-```
-
-Now `cd("testlit/")` and do
+The function `LiveServer.servedocs_literate_example` generates a directory which has the right structure that you can copy for your package.
+To experiment, do:
 
 ```julia-repl
+julia> using LiveServer
+julia> LiveServer.servedocs_literate_example("test_dir")
+julia> cd("test_dir")
 julia> servedocs(literate=joinpath("docs", "literate"))
 ```
 
-if you navigate to `localhost:8000` you should end up with
+if you then navigate to `localhost:8000` you should end up with
 
 ![](../assets/testlit.png)
 
-if you modify `testlit/docs/literate/man/pg1.jl` for instance writing `f(4)` it will be applied directly:
+if you modify `test_dir/docs/literate/man/pg1.jl` for instance writing `f(4)` it will be applied directly:
 
 ![](../assets/testlit2.png)
