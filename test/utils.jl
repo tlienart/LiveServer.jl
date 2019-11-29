@@ -98,3 +98,17 @@ end
     @test isfile("example/index.html")
     cd(bk)
 end
+
+
+@testset "utils/servedocs_literate    " begin
+    bk = pwd()
+    tdir = mktempdir()
+    cd(tdir)
+    LiveServer.servedocs_literate_example("test")
+    @test isdir("test")
+    @test isfile(joinpath("test", "docs", "literate", "man",  "pg1.jl"))
+    @test isfile(joinpath("test", "docs", "src", "index.md"))
+    @test isfile(joinpath("test", "src", "test.jl"))
+    cd(bk)
+    rm(tdir, recursive=true)
+end
