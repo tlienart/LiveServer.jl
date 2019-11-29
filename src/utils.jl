@@ -179,3 +179,67 @@ function example(; basedir="")
     isempty(basedir) && (basedir = pwd())
     cp(joinpath(dirname(dirname(pathof(LiveServer))), "example"), joinpath(basedir, "example"))
 end
+
+#
+# Generate example repo for servedocs
+#
+
+const INDEX_MD = raw"""
+    # Test
+    A link to the [other page](/man/pg1.md)
+    """
+const PG1_JL  = raw"""
+    # # Test literate
+    # We can include some code like so:
+    f(x) = x^5
+    f(5)
+    """
+const MAKE_JL = raw"""
+    using Documenter, Literate
+    src = joinpath(@__DIR__, "src")
+    lit = joinpath(@__DIR__, "literate")
+    for (root, _, files) ∈ walkdir(lit), file ∈ files
+        splitext(file)[2] == ".jl" || continue
+        ipath = joinpath(root, file)
+        opath = splitdir(replace(ipath, lit=>src))[1]
+        Literate.markdown(ipath, opath)
+    end
+    makedocs(
+        sitename = "testlit",
+        pages = ["Home" => "index.md",
+                 "Other page" => "man/pg1.md"]
+        )
+    """
+
+"""
+servedocs_literate_example(dir="servedocs_literate_example")
+
+Generates a folder with the right structure for servedocs+literate example.
+You can then `cd` to that folder and use servedocs:
+
+```
+julia> using LiveServer
+julia> LiveServer.servedocs_literate_example()
+julia> cd("servedocs_literate_example")
+julia> servedocs(literate=joinpath("docs","literate"))
+```
+"""
+function servedocs_literate_example(dirname="servedocs_literate_example")
+    isdir(dirname) && rm(dirname, recursive=true)
+    mkdir(dirname)
+    # folder structure
+    src  = joinpath(dirname, "src")
+    mkdir(src)
+    write(joinpath(src, "$dirname.jl"), "module $dirname\n foo()=1\n end")
+    docs = joinpath(dirname, "docs")
+    mkdir(docs)
+    src = joinpath(docs, "src")
+    lit = joinpath(docs, "literate")
+    man = joinpath(lit, "man")
+    mkdir(src)
+    mkdir(lit)
+    mkdir(man)
+    write(joinpath(src, "index.md"), INDEX_MD)
+    write(joinpath(man, "pg1.jl"), PG1_JL)
+    write(joinpath(docs, "make.jl"), MAKE_JL)
+end
