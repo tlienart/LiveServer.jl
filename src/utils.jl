@@ -186,7 +186,7 @@ end
 
 const INDEX_MD = raw"""
     # Test
-    A link to the [other page](/man/pg1.md)
+    A link to the [other page](/man/pg1/)
     """
 const PG1_JL  = raw"""
     # # Test literate
@@ -242,4 +242,5 @@ function servedocs_literate_example(dirname="servedocs_literate_example")
     write(joinpath(src, "index.md"), INDEX_MD)
     write(joinpath(man, "pg1.jl"), PG1_JL)
     write(joinpath(docs, "make.jl"), MAKE_JL)
+    return
 end
