@@ -35,8 +35,7 @@ Open a Browser and go to `http://localhost:8000/` to see the content being rende
 
 ### Serve docs
 
-A derived function from `serve` that will be convenient to Julia package developpers is `servedocs` which runs `Documenter` along with `LiveServer` to render your docs and will track and render any modifications to your docs.
-This can make docs development significantly easier.
+`servedocs` is a convenience function that runs `Documenter` along with `LiveServer` to watch your doc files for any changes and render them in your browser when modifications are detected.  
 
 Assuming you are in `directory/to/YourPackage.jl` and that you have a `docs/` folder as prescribed by [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl), just run:
 
