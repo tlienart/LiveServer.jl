@@ -91,9 +91,12 @@ function file_watcher_task!(fw::FileWatcher)
                     fw.callback(wf.path)
                 elseif state == -1
                     # the file does not exist, eventually delete it from list of watched files
-                    VERBOSE[] && @info("[FileWatcher]: file '$(wf.path)' does not exist " *
-                                       " (anymore); removing it from list of watched files.")
                     push!(deleted_files, i)
+                    if VERBOSE[]
+                        @info "[FileWatcher]: file '$(wf.path)' does not " *
+                              "exist (anymore); removing it from list of " *
+                              " watched files."
+                    end
                 end
             end
             # remove deleted files from list of watched files
