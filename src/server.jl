@@ -22,13 +22,20 @@ end
 """
     file_changed_callback(f_path::AbstractString)
 
-Function reacting to the change of the file at `f_path`. Is set as callback for the file watcher.
+Function reacting to the change of the file at `f_path`. Is set as callback for
+the file watcher.
 """
 function file_changed_callback(f_path::AbstractString)
-    VERBOSE[] && println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
+    if VERBOSE[]
+        println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
+    end
     if endswith(f_path, ".html")
         # if html file, update viewers of this file only
-        update_and_close_viewers!(WS_VIEWERS[f_path])
+        # check the viewer still exists otherwise may error
+        # see issue https://github.com/asprionj/LiveServer.jl/issues/95
+        if haskey(WS_VIEWERS, f_path)
+            update_and_close_viewers!(WS_VIEWERS[f_path])
+        end
     else
         # otherwise (e.g. modification to a CSS file), update all viewers
         foreach(update_and_close_viewers!, values(WS_VIEWERS))
@@ -40,8 +47,8 @@ end
 """
     get_fs_path(req_path::AbstractString)
 
-Return the filesystem path corresponding to a requested path, or an empty String if the file
-was not found.
+Return the filesystem path corresponding to a requested path, or an empty
+String if the file was not found.
 """
 function get_fs_path(req_path::AbstractString)::String
     # first element after the split is **always** "/"
