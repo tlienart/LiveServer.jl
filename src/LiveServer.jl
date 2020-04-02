@@ -4,8 +4,9 @@ module LiveServer
 using Sockets, Pkg
 # the only dependency (see the patch in http_patch.jl)
 using HTTP
+import Weave
 
-export serve, servedocs
+export serve, servedocs, serveweave
 
 #
 # Environment variables
@@ -33,7 +34,7 @@ const WS_INTERRUPT = Base.Ref{Bool}(false)
 include("mimetypes.jl")
 include("file_watching.jl")
 include("server.jl")
-
 include("utils.jl")
+include("weave.jl")
 
 end # module

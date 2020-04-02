@@ -31,7 +31,7 @@ Open a Browser and go to `http://localhost:8000/` to see the content being rende
 
 ### Serve docs
 
-A function derived from `serve` that will be convenient to Julia package developpers is `servedocs`. It runs [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl) along with `LiveServer` to render your docs and will track and render any modifications to your docs.
+A function derived from `serve` that will be convenient to Julia package developers is `servedocs`. It runs [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl) along with `LiveServer` to render your docs and will track and render any modifications to your docs.
 This instantaneous feedback makes writing docs significantly easier and faster.
 
 Assuming you are in `directory/to/YourPackage.jl` and that you have a `docs/` folder as prescribed by `Documenter`, just run:
@@ -51,6 +51,10 @@ Open a browser and go to `http://localhost:8000/` to see your docs being rendere
 
 You can also use LiveServer with both Documenter and [Literate.jl](https://github.com/fredrikekre/Literate.jl).
 This is explained [here](man/ls+lit.md).
+
+### Serve Weave
+
+The function [`serveweave()`](@ref) monitors for changes to a specified [Weave.jl](https://github.com/JunoLab/Weave.jl), and executes `weave` on that file, also triggering a browser reload. Thus, as with `servedocs`, this function is convenient as a instantaneous "preview" of the Weave file.
 
 ## How it works
 
