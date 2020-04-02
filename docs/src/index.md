@@ -54,7 +54,7 @@ This is explained [here](man/ls+lit.md).
 
 ### Serve Weave
 
-The function [`serveweave()`](@ref) monitors for changes to a specified [Weave.jl](https://github.com/JunoLab/Weave.jl), and executes `weave` on that file, also triggering a browser reload. Thus, as with `servedocs`, this function is convenient as a instantaneous "preview" of the Weave file.
+The function [`serveweave()`](@ref) monitors for changes to a specified [Weave.jl](https://github.com/JunoLab/Weave.jl), and executes `weave` on that file, also triggering a browser reload. Thus, as with `servedocs`, this function is convenient as an instantaneous "preview" of the Weave file.
 
 ## How it works
 
