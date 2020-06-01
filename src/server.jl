@@ -231,7 +231,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req))
 
     server = Sockets.listen(parse(IPAddr, host), port)
-    println("✓ LiveServer listening on http://$host:$port/ ...\n  (use CTRL+C to shut down)")
+    println("✓ LiveServer listening on http://$(host == string(Sockets.localhost) ? "localhost" : host):$port/ ...\n  (use CTRL+C to shut down)")
     @async HTTP.listen(host, port;
                        server=server, readtimeout=0, reuse_limit=0) do http::HTTP.Stream
         # reuse_limit=0 ensures that there won't be an error if killing and restarting the server.
