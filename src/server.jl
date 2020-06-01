@@ -191,9 +191,9 @@ end
 
 
 """
-    serve(filewatcher; port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing)
+    serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing)
 
-Main function to start a server at `http://localhost:port` and render what is in the current
+Main function to start a server at `http://host:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
 
 * `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) (which also is the default) and messaging the viewers (via WebSockets) upon detecting file changes.
@@ -206,15 +206,15 @@ directory. (See also [`example`](@ref) for an example folder).
 
 ```julia
 LiveServer.example()
-serve(port=8080, dir="example", verbose=true)
+serve(host="127.0.0.1", port=8080, dir="example", verbose=true)
 ```
 
-If you open a browser to `http://localhost:8080/`, you should see the `index.html` page from the
+If you open a browser to `http://127.0.0.1:8080/`, you should see the `index.html` page from the
 `example` folder being rendered. If you change the file, the browser will automatically reload the
 page and show the changes.
 """
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
-               port::Int=8000, dir::AbstractString="", verbose::Bool=false,
+               host::String="127.0.0.1", port::Int=8000, dir::AbstractString="", verbose::Bool=false,
                coreloopfun::Function=(c,fw)->nothing)
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
@@ -230,9 +230,9 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     # make request handler
     req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req))
 
-    server = Sockets.listen(port)
-    println("✓ LiveServer listening on http://localhost:$port/ ...\n  (use CTRL+C to shut down)")
-    @async HTTP.listen(Sockets.localhost, port;
+    server = Sockets.listen(parse(IPAddr, host), port)
+    println("✓ LiveServer listening on http://$(host == string(Sockets.localhost) ? "localhost" : host):$port/ ...\n  (use CTRL+C to shut down)")
+    @async HTTP.listen(host, port;
                        server=server, readtimeout=0, reuse_limit=0) do http::HTTP.Stream
         # reuse_limit=0 ensures that there won't be an error if killing and restarting the server.
         if HTTP.WebSockets.is_upgrade(http.message)
