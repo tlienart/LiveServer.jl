@@ -82,12 +82,13 @@ Upon modifying a `.md` file (e.g. updating `docs/src/index.md`), the `make.jl` w
 
 ### Additional keywords
 
-The `servedocs` function now takes two extra keywords which may, in some cases, make your life easier:
+The `servedocs` function now takes extra keywords which may, in some cases, make your life easier:
 
+* `foldername="docs"`, is the name of folder that contains the documentation, which can be changed if it's different than `docs`.
 * `doc_env=false`, if set to true, the `Project.toml` available in `docs/` will be activated (note 1),
 * `skip_dir=""`, indicates a directory to skip when looking at the docs folder for change, this can be useful when using packages like Literate or Weave that may generate files inside your `src` folder.
 
-Note that in  both cases these keywords  are there for your convenience but would be best not used. See also the discussion in [this issue](https://github.com/asprionj/LiveServer.jl/issues/85).
+Note that in latter two cases these keywords are there for your convenience but would be best not used. See also the discussion in [this issue](https://github.com/asprionj/LiveServer.jl/issues/85).
 In the first case, doing
 
 ```

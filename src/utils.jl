@@ -1,5 +1,5 @@
 """
-    servedocs_callback!(docwatcher, filepath, path2makejl, literate)
+    servedocs_callback!(docwatcher, filepath, path2makejl, literate, foldername)
 
 Custom callback used in [`servedocs`](@ref) triggered when the file corresponding to `filepath`
 is changed. If that file is `docs/make.jl`, the callback will check whether any new files have
@@ -8,11 +8,13 @@ file that may have been deleted or renamed.
 Otherwise, if the modified file is in `docs/src` or is `docs/make.jl`, a pass of Documenter is
 triggered to regenerate the documents, subsequently the LiveServer will render the produced pages
 in `docs/build`.
+`foldername` can be set other than "docs" if needed.
 """
 function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::AbstractString,
-                             literate::String="", skip_dirs::Vector{String}=String[])
+                             literate::String="", skip_dirs::Vector{String}=String[],
+                             foldername::String="docs")
     # ignore things happening in build (generated files etc)
-    startswith(fp, joinpath("docs", "build")) && return nothing
+    startswith(fp, joinpath(foldername, "build")) && return nothing
     if !isempty(skip_dirs)
         for dir in skip_dirs
             startswith(fp, dir) && return nothing
@@ -22,7 +24,7 @@ function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::Abst
     if fp == makejl
         # it's easier to start from scratch (takes negligible time)
         empty!(dw.watchedfiles)
-        scan_docs!(dw, literate)
+        scan_docs!(dw, literate, foldername)
     end
     fext = splitext(fp)[2]
     P1 = fext ∈ (".md", ".jl", ".css")
@@ -37,23 +39,23 @@ end
 
 
 """
-    scan_docs!(dw::SimpleWatcher, literate="")
+    scan_docs!(dw::SimpleWatcher, literate="", foldername="docs")
 
 Scans the `docs/` folder in order to recover the path to all files that have to be watched and add
 those files to `dw.watchedfiles`. The function returns the path to `docs/make.jl`. A list of
 folders and file paths can also be given for files that should be watched in addition to the
-content of `docs/src`.
+content of `docs/src`. `foldername` can be changed if it's different than docs.
 """
-function scan_docs!(dw::SimpleWatcher, literate::String="")
-    src = joinpath("docs", "src")
-    if !(isdir("docs") && isdir(src))
-        @error "I didn't find a docs/ or docs/src/ folder."
+function scan_docs!(dw::SimpleWatcher, literate::String="", foldername::String="docs")
+    src = joinpath(foldername, "src")
+    if !(isdir(foldername) && isdir(src))
+        @error "I didn't find a $foldername/ or $foldername/src/ folder."
     end
-    makejl = joinpath("docs", "make.jl")
+    makejl = joinpath(foldername, "make.jl")
     push!(dw.watchedfiles, WatchedFile(makejl))
-    if isdir("docs")
+    if isdir(foldername)
         # add all files in `docs/src` to watched files
-        for (root, _, files) ∈ walkdir(joinpath("docs", "src")), file ∈ files
+        for (root, _, files) ∈ walkdir(joinpath(foldername, "src")), file ∈ files
             push!(dw.watchedfiles, WatchedFile(joinpath(root, file)))
         end
     end
@@ -93,7 +95,7 @@ function scan_docs!(dw::SimpleWatcher, literate::String="")
         for (root, _, files) ∈ walkdir(literate), file ∈ files
             spath = splitext(joinpath(root, file))
             spath[2] == ".jl" || continue
-            path = replace(spath[1], Regex("^$literate") => joinpath("docs", "src"))
+            path = replace(spath[1], Regex("^$literate") => joinpath(foldername, "src"))
             k = findfirst(e -> splitext(e.path) == (path, ".md"), dw.watchedfiles)
             k === nothing || push!(remove, k)
         end
@@ -104,7 +106,7 @@ end
 
 
 """
-    servedocs(; verbose=false, literate="", doc_env=false)
+    servedocs(; verbose=false, literate="", doc_env=false, foldername="docs")
 
 Can be used when developing a package to run the `docs/make.jl` file from Documenter.jl and
 then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
@@ -117,9 +119,11 @@ assumed that they are in `docs/src`.
 * `doc_env=false` is a boolean switch to make the server start by activating the doc environment or not (i.e. the `Project.toml` in `docs/`).
 * `skip_dir=""` is a subpath of `docs/` where modifications should not trigger the generation of the docs, this is useful for instance if you're using Weave and Weave generates some files in `docs/src/examples` in which case you should give `skip_dir=joinpath("docs","src","examples")`.
 * `skip_dirs=[]` same as `skip_dir`  but for a vector of such dirs. Takes precedence over `skip_dir`.
+* `foldername="docs"` specify the name of the content folder if different than "docs".
 """
 function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=false,
-                     skip_dir::String="", skip_dirs::Vector{String}=String[])
+                     skip_dir::String="", skip_dirs::Vector{String}=String[],
+                     foldername::String="docs")
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
 
@@ -128,20 +132,20 @@ function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=fal
     end
 
     set_callback!(docwatcher,
-                  fp->servedocs_callback!(docwatcher, fp, makejl, literate, skip_dirs))
+                  fp->servedocs_callback!(docwatcher, fp, makejl, literate, skip_dirs, foldername))
 
     # Retrieve files to watch
-    makejl = scan_docs!(docwatcher, literate)
+    makejl = scan_docs!(docwatcher, literate, foldername)
 
     if doc_env
-        Pkg.activate("docs/Project.toml")
+        Pkg.activate("$foldername/Project.toml")
     end
     # trigger a first pass of Documenter (& possibly Literate)
     Main.include(makejl)
 
     # note the `docs/build` exists here given that if we're here it means the documenter
     # pass did not error and therefore that a docs/build has been generated.
-    serve(docwatcher, dir=joinpath("docs", "build"), verbose=verbose)
+    serve(docwatcher, dir=joinpath(foldername, "build"), verbose=verbose)
     if doc_env
         Pkg.activate()
     end
