@@ -1,5 +1,5 @@
 """
-    servedocs_callback!(docwatcher, filepath, path2makejl, literate)
+    servedocs_callback!(docwatcher, filepath, path2makejl, literate, foldername)
 
 Custom callback used in [`servedocs`](@ref) triggered when the file corresponding to `filepath`
 is changed. If that file is `docs/make.jl`, the callback will check whether any new files have
@@ -8,6 +8,7 @@ file that may have been deleted or renamed.
 Otherwise, if the modified file is in `docs/src` or is `docs/make.jl`, a pass of Documenter is
 triggered to regenerate the documents, subsequently the LiveServer will render the produced pages
 in `docs/build`.
+`foldername` can be set other than "docs" if needed.
 """
 function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::AbstractString,
                              literate::String="", skip_dirs::Vector{String}=String[],
@@ -38,12 +39,12 @@ end
 
 
 """
-    scan_docs!(dw::SimpleWatcher, literate="")
+    scan_docs!(dw::SimpleWatcher, literate="", foldername="docs")
 
 Scans the `docs/` folder in order to recover the path to all files that have to be watched and add
 those files to `dw.watchedfiles`. The function returns the path to `docs/make.jl`. A list of
 folders and file paths can also be given for files that should be watched in addition to the
-content of `docs/src`.
+content of `docs/src`. `foldername` can be changed if it's different than docs.
 """
 function scan_docs!(dw::SimpleWatcher, literate::String="", foldername::String="docs")
     src = joinpath(foldername, "src")
@@ -105,7 +106,7 @@ end
 
 
 """
-    servedocs(; verbose=false, literate="", doc_env=false)
+    servedocs(; verbose=false, literate="", doc_env=false, foldername="docs")
 
 Can be used when developing a package to run the `docs/make.jl` file from Documenter.jl and
 then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
@@ -118,7 +119,7 @@ assumed that they are in `docs/src`.
 * `doc_env=false` is a boolean switch to make the server start by activating the doc environment or not (i.e. the `Project.toml` in `docs/`).
 * `skip_dir=""` is a subpath of `docs/` where modifications should not trigger the generation of the docs, this is useful for instance if you're using Weave and Weave generates some files in `docs/src/examples` in which case you should give `skip_dir=joinpath("docs","src","examples")`.
 * `skip_dirs=[]` same as `skip_dir`  but for a vector of such dirs. Takes precedence over `skip_dir`.
-* `foldername="docs"` use `foldername` instead of "docs" everywhere.
+* `foldername="docs"` specify the name of the content folder if different than "docs".
 """
 function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=false,
                      skip_dir::String="", skip_dirs::Vector{String}=String[],
