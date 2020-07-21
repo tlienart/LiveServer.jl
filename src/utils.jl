@@ -9,12 +9,13 @@ Otherwise, if the modified file is in `docs/src` or is `docs/make.jl`, a pass of
 triggered to regenerate the documents, subsequently the LiveServer will render the produced pages
 in `docs/build`.
 `foldername` can be set other than "docs" if needed.
+`buildfoldername` can be set other than "build" if needed.
 """
 function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::AbstractString,
                              literate::String="", skip_dirs::Vector{String}=String[],
-                             foldername::String="docs")
+                             foldername::String="docs", buildfoldername="build")
     # ignore things happening in build (generated files etc)
-    startswith(fp, joinpath(foldername, "build")) && return nothing
+    startswith(fp, joinpath(foldername, buildfoldername)) && return nothing
     if !isempty(skip_dirs)
         for dir in skip_dirs
             startswith(fp, dir) && return nothing
@@ -120,10 +121,11 @@ assumed that they are in `docs/src`.
 * `skip_dir=""` is a subpath of `docs/` where modifications should not trigger the generation of the docs, this is useful for instance if you're using Weave and Weave generates some files in `docs/src/examples` in which case you should give `skip_dir=joinpath("docs","src","examples")`.
 * `skip_dirs=[]` same as `skip_dir`  but for a vector of such dirs. Takes precedence over `skip_dir`.
 * `foldername="docs"` specify the name of the content folder if different than "docs".
+* `buildfoldername="build"` specify the name of the build folder if different than "build".
 """
 function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=false,
                      skip_dir::String="", skip_dirs::Vector{String}=String[],
-                     foldername::String="docs")
+                     foldername::String="docs", buildfoldername::String="build")
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
 
@@ -132,7 +134,7 @@ function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=fal
     end
 
     set_callback!(docwatcher,
-                  fp->servedocs_callback!(docwatcher, fp, makejl, literate, skip_dirs, foldername))
+                  fp->servedocs_callback!(docwatcher, fp, makejl, literate, skip_dirs, foldername, buildfoldername))
 
     # Retrieve files to watch
     makejl = scan_docs!(docwatcher, literate, foldername)
@@ -145,7 +147,7 @@ function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=fal
 
     # note the `docs/build` exists here given that if we're here it means the documenter
     # pass did not error and therefore that a docs/build has been generated.
-    serve(docwatcher, dir=joinpath(foldername, "build"), verbose=verbose)
+    serve(docwatcher, dir=joinpath(foldername, buildfoldername), verbose=verbose)
     if doc_env
         Pkg.activate()
     end
