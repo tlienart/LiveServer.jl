@@ -5,13 +5,13 @@ body {
     color: #363636;
 }
 
-article {
+/* article {
     margin-left: 16em;
-}
+} */
 
-nav.toc {
+/* nav.toc {
     width: 15em;
-}
+} */
 
 nav.toc ul li ul li.current ul.internal li a.toctext:before {
     content:"• ";
