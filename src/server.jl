@@ -69,7 +69,7 @@ end
 
 
 """
-    serve_file(fw, req::HTTP.Request)
+    serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true)
 
 Handler function for serving files. This takes a file watcher, to which files to be watched can be
 added, and a request (e.g. a path entered in a tab of the browser), and converts it to the
@@ -79,7 +79,7 @@ All files served are added to the file watcher, which is responsible to check wh
 already watched or not. Finally the file is served via a 200 (successful) response. If the file
 does not exist, a response with status 404 and an according message is sent.
 """
-function serve_file(fw, req::HTTP.Request)
+function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true)
     fs_path = get_fs_path(req.target)
     # in case the path was not resolved, return a 404
     isempty(fs_path) && return HTTP.Response(404, "404: file not found. The most likely reason " *
@@ -100,7 +100,7 @@ function serve_file(fw, req::HTTP.Request)
     mime = get(MIME_TYPES, ext, "application/octet-stream")
 
     # if html, add the browser-sync script to it
-    if mime in ["text/html", "application/xhtml+xml"]
+    if (inject_browser_reload_script) && (mime in ["text/html", "application/xhtml+xml"])
         end_body_match = match(r"</body>", content)
         if end_body_match === nothing
             # no </body> tag found, trying to add the reload script at the end; this may fail.
@@ -191,7 +191,7 @@ end
 
 
 """
-    serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing)
+    serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing, inject_browser_reload_script::Bool = true)
 
 Main function to start a server at `http://host:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
@@ -215,7 +215,8 @@ page and show the changes.
 """
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
                host::String="127.0.0.1", port::Int=8000, dir::AbstractString="", verbose::Bool=false,
-               coreloopfun::Function=(c,fw)->nothing)
+               coreloopfun::Function=(c,fw)->nothing,
+               inject_browser_reload_script::Bool = true)
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
     setverbose(verbose)
@@ -228,7 +229,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     start(fw)
 
     # make request handler
-    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req))
+    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script))
 
     server = Sockets.listen(parse(IPAddr, host), port)
     println("✓ LiveServer listening on http://$(host == string(Sockets.localhost) ? "localhost" : host):$port/ ...\n  (use CTRL+C to shut down)")
