@@ -80,12 +80,27 @@ already watched or not. Finally the file is served via a 200 (successful) respon
 does not exist, a response with status 404 and an according message is sent.
 """
 function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true)
+    ret_code = 200
     fs_path = get_fs_path(req.target)
     # in case the path was not resolved, return a 404
-    isempty(fs_path) && return HTTP.Response(404, "404: file not found. The most likely reason " *
-                                    "is that the URL you entered has a mistake in it or that " *
-                                    "the requested page has been deleted or renamed. Check " *
-                                    "also that the server is still running.")
+    if isempty(fs_path)
+        ret_code = 404
+        # Check if /404/ or /404.html exists and serve that as a body
+        for f in ("/404/", "/404.html")
+            maybe_path = get_fs_path(f)
+            if !isempty(maybe_path)
+                fs_path = maybe_path
+                break
+            end
+        end
+        # If still not found a body, return a generic error message
+        if isempty(fs_path)
+            return HTTP.Response(404, "404: file not found. The most likely reason " *
+                                      "is that the URL you entered has a mistake in it or that " *
+                                      "the requested page has been deleted or renamed. Check " *
+                                      "also that the server is still running.")
+        end
+    end
 
     # Respond with 301 if the path is a directory
     if isdir(fs_path)
@@ -117,7 +132,7 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
     end
 
     headers = ["Content-Type" => mime]
-    resp = HTTP.Response(content)
+    resp = HTTP.Response(ret_code, content)
     isempty(headers) || (resp.headers = HTTP.mkheaders(headers))
 
     # add the file to the file watcher
