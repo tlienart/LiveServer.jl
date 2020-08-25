@@ -29,6 +29,7 @@ tasks that you will try to start.
 
     isdir("css") && rm("css", recursive=true)
     isfile("tmp.html") && rm("tmp.html")
+    isdir("404") && rm("404", recursive=true)
 
     write("tmp.html", "blah")
     mkdir("css")
@@ -62,8 +63,14 @@ tasks that you will try to start.
     @test String(response.body) == replace(read("index.html", String),
                             "</body>"=>"$(LS.BROWSER_RELOAD_SCRIPT)</body>")
     # if one asks for something incorrect, a 404 should be returned
-    # XXX ok so actually an ERROR is thrown, that's not good?
-    @test_throws HTTP.ExceptionRequest.StatusError HTTP.get("http://localhost:$port/no.html")
+    response = HTTP.get("http://localhost:$port/no.html"; status_exception=false)
+    @test response.status == 404
+    @test occursin("404: file not found. The most likely reason", String(response.body))
+    # test custom 404.html page
+    mkdir("404"); write("404/index.html", "custom 404")
+    response = HTTP.get("http://localhost:$port/no.html"; status_exception=false)
+    @test response.status == 404
+    @test occursin("custom 404", String(response.body))
     # if one asks for something without a </body>, it should just be appended
     response = HTTP.get("http://localhost:$port/tmp.html")
     @test response.status == 200
@@ -74,10 +81,12 @@ tasks that you will try to start.
 
     # we asked earlier for index.html therefore that file should be followed
     @test fw.watchedfiles[1].path == "index.html"
+    # also 404
+    @test fw.watchedfiles[2].path == "404/index.html"
     # also tmp
-    @test fw.watchedfiles[2].path == "tmp.html"
+    @test fw.watchedfiles[3].path == "tmp.html"
     # and the css
-    @test fw.watchedfiles[3].path == "css/foo.css"
+    @test fw.watchedfiles[4].path == "css/foo.css"
 
     # if we modify the file, it should trigger the callback function which should open
     # and then subsequently close a websocket. We check this happens properly by adding
@@ -107,6 +116,7 @@ tasks that you will try to start.
     # if we remove the files, it shall stop following it
     rm("tmp.html")
     rm("css", recursive=true)
+    rm("404", recursive=true)
     sleep(0.25)
     # only index.html is still watched
     @test length(fw.watchedfiles) == 1
