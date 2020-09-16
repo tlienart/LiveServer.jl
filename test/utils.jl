@@ -60,7 +60,8 @@ end
     # error if there's no docs/ folder
     cray = Crayon(foreground=:cyan, bold=true)
     println(cray, "\n⚠ Deliberately causing an error to be displayed and handled...\n")
-    @test_throws SystemError LS.scan_docs!(dw, "docs")
+    err = VERSION < v"1.6-" ? SystemError : Base.IOError
+    @test_throws err LS.scan_docs!(dw, "docs")
 
     empty!(dw.watchedfiles)
 
@@ -146,7 +147,8 @@ end
     # error if there's no docs/ folder
     cray = Crayon(foreground=:cyan, bold=true)
     println(cray, "\n⚠ Deliberately causing an error to be displayed and handled...\n")
-    @test_throws SystemError LS.scan_docs!(dw, "site", "site")
+    err = VERSION < v"1.6-" ? SystemError : Base.IOError
+    @test_throws err LS.scan_docs!(dw, "site", "site")
 
     empty!(dw.watchedfiles)
 
