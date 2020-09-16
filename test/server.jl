@@ -1,7 +1,7 @@
 @testset "Server/Paths                " begin
     # requested path --> a filesystem path
     bk = pwd()
-    cd(dirname(dirname(pathof(LiveServer))))
+    cd(joinpath(@__DIR__, ".."))
     req = "tmp"
     @test LS.get_fs_path(req) == ""
     req = "/test/dummies/index.html"

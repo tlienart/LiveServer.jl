@@ -12,7 +12,7 @@ export serve, servedocs
 #
 
 """Script to insert on a page for live reload, see `client.html`."""
-const BROWSER_RELOAD_SCRIPT = read(joinpath(dirname(pathof(LiveServer)), "client.html"), String)
+const BROWSER_RELOAD_SCRIPT = read(joinpath(@__DIR__, "client.html"), String)
 
 """Whether to display messages while serving or not, see [`verbose`](@ref)."""
 const VERBOSE = Ref{Bool}(false)
