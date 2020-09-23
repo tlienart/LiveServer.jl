@@ -1,3 +1,28 @@
+# NOTE: this is copied from Pluto.
+"""
+    open_in_default_browser(url)
+
+Open a URL in system default browser.
+"""
+function open_in_default_browser(url::AbstractString)::Bool
+    try
+        if Sys.isapple()
+            Base.run(`open $url`)
+            true
+        elseif Sys.iswindows() || detectwsl()
+            Base.run(`cmd.exe /s /c start "" /b $url`)
+            true
+        elseif Sys.islinux()
+            Base.run(`xdg-open $url`)
+            true
+        else
+            false
+        end
+    catch ex
+        false
+    end
+end
+
 """
     update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
 
@@ -206,7 +231,7 @@ end
 
 
 """
-    serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing, inject_browser_reload_script::Bool = true)
+    serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing, inject_browser_reload_script::Bool = true, launch_browser::Bool = false)
 
 Main function to start a server at `http://host:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
@@ -216,6 +241,7 @@ directory. (See also [`example`](@ref) for an example folder).
 * `dir` specifies where to launch the server if not the current working directory.
 * `verbose` is a boolean switch to make the server print information about file changes and connections.
 * `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
+* `launch_browser=false` is a boolean switch to choose launch the browser at host url.
 
 # Example
 
@@ -231,7 +257,8 @@ page and show the changes.
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
                host::String="127.0.0.1", port::Int=8000, dir::AbstractString="", verbose::Bool=false,
                coreloopfun::Function=(c,fw)->nothing,
-               inject_browser_reload_script::Bool = true)
+               inject_browser_reload_script::Bool = true,
+               launch_browser::Bool = false)
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
     setverbose(verbose)
@@ -247,7 +274,8 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script))
 
     server = Sockets.listen(parse(IPAddr, host), port)
-    println("✓ LiveServer listening on http://$(host == string(Sockets.localhost) ? "localhost" : host):$port/ ...\n  (use CTRL+C to shut down)")
+    url = "http://$(host == string(Sockets.localhost) ? "localhost" : host):$port"
+    println("✓ LiveServer listening on $url/ ...\n  (use CTRL+C to shut down)")
     @async HTTP.listen(host, port;
                        server=server, readtimeout=0, reuse_limit=0) do http::HTTP.Stream
         # reuse_limit=0 ensures that there won't be an error if killing and restarting the server.
@@ -262,6 +290,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
         end
     end
 
+    launch_browser && open_in_default_browser(url)
     # wait until user interrupts the LiveServer (using CTRL+C).
     try
         counter = 1
