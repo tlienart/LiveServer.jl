@@ -1,8 +1,9 @@
-# NOTE: this is copied from Pluto.
 """
     open_in_default_browser(url)
 
-Open a URL in system default browser.
+Open a URL in the ambient default browser.
+
+Note: this was copied from Pluto.jl.
 """
 function open_in_default_browser(url::AbstractString)::Bool
     try
@@ -241,17 +242,16 @@ directory. (See also [`example`](@ref) for an example folder).
 * `dir` specifies where to launch the server if not the current working directory.
 * `verbose` is a boolean switch to make the server print information about file changes and connections.
 * `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
-* `launch_browser=false` is a boolean switch to choose launch the browser at host url.
+* `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
 
 # Example
 
 ```julia
 LiveServer.example()
-serve(host="127.0.0.1", port=8080, dir="example", verbose=true)
+serve(host="127.0.0.1", port=8080, dir="example", verbose=true, launch_browser=true)
 ```
 
-If you open a browser to `http://127.0.0.1:8080/`, you should see the `index.html` page from the
-`example` folder being rendered. If you change the file, the browser will automatically reload the
+You should then see the `index.html` page from the `example` folder being rendered. If you change the file, the browser will automatically reload the
 page and show the changes.
 """
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);

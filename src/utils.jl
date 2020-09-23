@@ -122,11 +122,14 @@ assumed that they are in `docs/src`.
 * `skip_dirs=[]` same as `skip_dir`  but for a vector of such dirs. Takes precedence over `skip_dir`.
 * `foldername="docs"` specify the name of the content folder if different than "docs".
 * `buildfoldername="build"` specify the name of the build folder if different than "build".
-* `launch_browser=false` is a boolean switch to choose launch the browser at host url.
+* `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
 """
-function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=false,
-                     skip_dir::String="", skip_dirs::Vector{String}=String[],
-                     foldername::String="docs", buildfoldername::String="build", launch_browser::Bool = false)
+function servedocs(; verbose::Bool=false, literate::String="",
+                     doc_env::Bool=false, skip_dir::String="",
+                     skip_dirs::Vector{String}=String[],
+                     foldername::String="docs",
+                     buildfoldername::String="build",
+                     launch_browser::Bool = false)
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
 
