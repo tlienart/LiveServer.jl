@@ -122,10 +122,11 @@ assumed that they are in `docs/src`.
 * `skip_dirs=[]` same as `skip_dir`  but for a vector of such dirs. Takes precedence over `skip_dir`.
 * `foldername="docs"` specify the name of the content folder if different than "docs".
 * `buildfoldername="build"` specify the name of the build folder if different than "build".
+* `launch_browser=false` is a boolean switch to choose launch the browser at host url.
 """
 function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=false,
                      skip_dir::String="", skip_dirs::Vector{String}=String[],
-                     foldername::String="docs", buildfoldername::String="build")
+                     foldername::String="docs", buildfoldername::String="build", launch_browser::Bool = false)
     # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
     docwatcher = SimpleWatcher()
 
@@ -147,7 +148,7 @@ function servedocs(; verbose::Bool=false, literate::String="", doc_env::Bool=fal
 
     # note the `docs/build` exists here given that if we're here it means the documenter
     # pass did not error and therefore that a docs/build has been generated.
-    serve(docwatcher, dir=joinpath(foldername, buildfoldername), verbose=verbose)
+    serve(docwatcher, dir=joinpath(foldername, buildfoldername), verbose=verbose, launch_browser=launch_browser)
     if doc_env
         Pkg.activate()
     end
