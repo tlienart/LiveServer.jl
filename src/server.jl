@@ -77,14 +77,15 @@ Return the filesystem path corresponding to a requested path, or an empty
 String if the file was not found.
 """
 function get_fs_path(req_path::AbstractString)::String
+    uri = HTTP.URI(req_path)
     # first element after the split is **always** "/"
-    r_parts = HTTP.URIs.unescapeuri.(split(HTTP.URI(req_path).path[2:end], "/"))
+    r_parts = HTTP.URIs.unescapeuri.(split(uri.path[2:end], "/"))
     fs_path = joinpath(r_parts...)
     if !isempty(CONTENT_DIR[])
         fs_path = joinpath(CONTENT_DIR[], fs_path)
     end
     # if no file is specified, try to append `index.html` and see
-    endswith(req_path, "/") && (fs_path = joinpath(fs_path, "index.html"))
+    endswith(uri.path, "/") && (fs_path = joinpath(fs_path, "index.html"))
     # either the result is a valid file path in which case it's returned otherwise ""
     if isfile(fs_path) || isdir(fs_path)
         return fs_path
@@ -93,6 +94,16 @@ function get_fs_path(req_path::AbstractString)::String
     end
 end
 
+"""
+    append_slash(url::AbstractString) -> url′::AbstractString
+
+Append `/` to the path part of `url`; i.e., transform `a/b` to `a/b/` and `/a/b?c=d` to
+`/a/b/?c=d`.
+"""
+function append_slash(url_str::AbstractString)
+    uri = HTTP.URI(url_str)
+    return string(endswith(uri.path, "/") ? uri : merge(uri; path = uri.path * "/"))
+end
 
 """
     serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true)
@@ -130,7 +141,7 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
 
     # Respond with 301 if the path is a directory
     if isdir(fs_path)
-        return HTTP.Response(301, ["Location" => req.target * "/"])
+        return HTTP.Response(301, ["Location" => append_slash(req.target)])
     end
 
     ext = last(splitext(fs_path))[2:end]
