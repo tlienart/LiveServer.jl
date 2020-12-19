@@ -2,7 +2,7 @@
 
 | Status (Linux/Mac) | Status (Windows) | Coverage | Docs |
 | :----: | :----: | :----: | :----: |
-| [![Build Status](https://travis-ci.org/asprionj/LiveServer.jl.svg?branch=master)](https://travis-ci.org/asprionj/LiveServer.jl) | [![AppVeyor](https://ci.appveyor.com/api/projects/status/github/asprionj/LiveServer.jl?branch=master&svg=true)](https://ci.appveyor.com/project/asprionj/LiveServer-jl) | [![codecov.io](http://codecov.io/github/asprionj/LiveServer.jl/coverage.svg?branch=master)](http://codecov.io/github/asprionj/LiveServer.jl?branch=master) | [![stable-doc](https://img.shields.io/badge/docs-stable-blue.svg)](https://asprionj.github.io/LiveServer.jl/stable/) [![dev-doc](https://img.shields.io/badge/docs-dev-blue.svg)](https://asprionj.github.io/LiveServer.jl/dev/)
+| [![Build Status](https://travis-ci.org/tlienart/LiveServer.jl.svg?branch=master)](https://travis-ci.org/tlienart/LiveServer.jl) | [![AppVeyor](https://ci.appveyor.com/api/projects/status/github/tlienart/LiveServer.jl?branch=master&svg=true)](https://ci.appveyor.com/project/tlienart/LiveServer-jl) | [![codecov.io](http://codecov.io/github/tlienart/LiveServer.jl/coverage.svg?branch=master)](http://codecov.io/github/tlienart/LiveServer.jl?branch=master) | [![stable-doc](https://img.shields.io/badge/docs-stable-blue.svg)](https://tlienart.github.io/LiveServer.jl/stable/) [![dev-doc](https://img.shields.io/badge/docs-dev-blue.svg)](https://tlienart.github.io/LiveServer.jl/dev/)
 
 This is a simple and lightweight development web-server written in Julia, based on [HTTP.jl](https://github.com/JuliaWeb/HTTP.jl).
 It has live-reload capability, i.e. when modifying a file, every browser (tab) currently displaying the corresponding page is automatically refreshed.
@@ -52,4 +52,4 @@ julia> servedocs()
 
 Open a browser and go to `http://localhost:8000/` to see your docs being rendered; try modifying files (e.g. `docs/index.md`) and watch the changes being rendered in the browser.
 
-**Note**: this works with [Literate.jl](https://github.com/fredrikekre/Literate.jl) as well. See [the docs](https://asprionj.github.io/LiveServer.jl/dev/man/ls+lit/).
+**Note**: this works with [Literate.jl](https://github.com/fredrikekre/Literate.jl) as well. See [the docs](https://tlienart.github.io/LiveServer.jl/dev/man/ls+lit/).
