@@ -1,8 +1,8 @@
 # Live Server for Julia
 
-| Status (Linux/Mac) | Status (Windows) | Coverage | Docs |
-| :----: | :----: | :----: | :----: |
-| [![Build Status](https://travis-ci.org/tlienart/LiveServer.jl.svg?branch=master)](https://travis-ci.org/tlienart/LiveServer.jl) | [![AppVeyor](https://ci.appveyor.com/api/projects/status/github/tlienart/LiveServer.jl?branch=master&svg=true)](https://ci.appveyor.com/project/tlienart/LiveServer-jl) | [![codecov.io](http://codecov.io/github/tlienart/LiveServer.jl/coverage.svg?branch=master)](http://codecov.io/github/tlienart/LiveServer.jl?branch=master) | [![stable-doc](https://img.shields.io/badge/docs-stable-blue.svg)](https://tlienart.github.io/LiveServer.jl/stable/) [![dev-doc](https://img.shields.io/badge/docs-dev-blue.svg)](https://tlienart.github.io/LiveServer.jl/dev/)
+[![CI Actions Status](https://github.com/tlienart/FranklinMarkdown.jl/workflows/CI/badge.svg)](https://github.com/tlienart/FranklinMarkdown.jl/actions)
+[![codecov](https://codecov.io/gh/tlienart/FranklinParser.jl/branch/main/graph/badge.svg?token=mNry6r2aIn)](https://codecov.io/gh/tlienart/FranklinParser.jl)
+[![dev-doc](https://img.shields.io/badge/docs-dev-blue.svg)](https://tlienart.github.io/LiveServer.jl/dev/)
 
 This is a simple and lightweight development web-server written in Julia, based on [HTTP.jl](https://github.com/JuliaWeb/HTTP.jl).
 It has live-reload capability, i.e. when modifying a file, every browser (tab) currently displaying the corresponding page is automatically refreshed.
