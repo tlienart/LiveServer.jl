@@ -132,10 +132,9 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
         end
         # If still not found a body, return a generic error message
         if isempty(fs_path)
-            return HTTP.Response(404, "404: file not found. The most likely reason " *
-                                      "is that the URL you entered has a mistake in it or that " *
-                                      "the requested page has been deleted or renamed. Check " *
-                                      "also that the server is still running.")
+            return HTTP.Response(404, "404: file not found. Perhaps you made a typo " *
+                                      "in the URL, or the requested file has been " *
+                                      "deleted or renamed.")
         end
     end
 
