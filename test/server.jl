@@ -73,7 +73,7 @@ tasks that you will try to start.
     # if one asks for something incorrect, a 404 should be returned
     response = HTTP.get("http://localhost:$port/no.html"; status_exception=false)
     @test response.status == 404
-    @test occursin("404: file not found. The most likely reason", String(response.body))
+    @test occursin("404: file not found.", String(response.body))
     # test custom 404.html page
     mkdir("404"); write("404/index.html", "custom 404")
     response = HTTP.get("http://localhost:$port/no.html"; status_exception=false)
