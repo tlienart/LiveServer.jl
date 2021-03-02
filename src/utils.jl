@@ -147,7 +147,7 @@ function servedocs(; verbose::Bool=false, literate::String="",
         Pkg.activate("$foldername/Project.toml")
     end
     # trigger a first pass of Documenter (& possibly Literate)
-    Main.include(makejl)
+    Main.include(abspath(makejl))
 
     # note the `docs/build` exists here given that if we're here it means the documenter
     # pass did not error and therefore that a docs/build has been generated.
