@@ -116,7 +116,7 @@ All files served are added to the file watcher, which is responsible to check wh
 already watched or not. Finally the file is served via a 200 (successful) response. If the file
 does not exist, a response with status 404 and an according message is sent.
 """
-function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true)
+function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true, allow_cors::Bool = false)
     ret_code = 200
     fs_path = get_fs_path(req.target)
     # in case the path was not resolved, return a 404
@@ -169,6 +169,9 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
     end
 
     headers = ["Content-Type" => mime]
+    if allow_cors
+        push!(headers, "Access-Control-Allow-Origin" => "*")
+    end
     resp = HTTP.Response(ret_code, content)
     isempty(headers) || (resp.headers = HTTP.mkheaders(headers))
 
@@ -243,17 +246,20 @@ end
 
 
 """
-    serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing, inject_browser_reload_script::Bool = true, launch_browser::Bool = false)
+    serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing, inject_browser_reload_script::Bool = true, launch_browser::Bool = false, allow_cors::Bool = false)
 
 Main function to start a server at `http://host:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
 
-* `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) (which also is the default) and messaging the viewers (via WebSockets) upon detecting file changes.
-* `port` is an integer between 8000 (default) and 9000.
-* `dir` specifies where to launch the server if not the current working directory.
-* `verbose` is a boolean switch to make the server print information about file changes and connections.
-* `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
-* `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
+# Arguments
+
+- `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) (which also is the default) and messaging the viewers (via WebSockets) upon detecting file changes.
+- `port` is an integer between 8000 (default) and 9000.
+- `dir` specifies where to launch the server if not the current working directory.
+- `verbose` is a boolean switch to make the server print information about file changes and connections.
+- `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
+- `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
+- `allow_cors::Bool=false` will allow cross origin (CORS) requests to access the server via the "Access-Control-Allow-Origin" header.
 
 # Example
 
@@ -267,9 +273,10 @@ page and show the changes.
 """
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
                host::String="127.0.0.1", port::Int=8000, dir::AbstractString="", verbose::Bool=false,
-               coreloopfun::Function=(c,fw)->nothing,
+               coreloopfun::Function=(c, fw)->nothing,
                inject_browser_reload_script::Bool = true,
-               launch_browser::Bool = false)
+               launch_browser::Bool = false,
+               allow_cors::Bool = false)
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
     setverbose(verbose)
@@ -282,7 +289,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     start(fw)
 
     # make request handler
-    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script))
+    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script, allow_cors = allow_cors))
 
     server = Sockets.listen(parse(IPAddr, host), port)
     url = "http://$(host == string(Sockets.localhost) ? "localhost" : host):$port"
