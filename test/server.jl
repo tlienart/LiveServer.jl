@@ -70,6 +70,8 @@ tasks that you will try to start.
     # the browser script should be appended
     @test String(response.body) == replace(read("index.html", String),
                             "</body>"=>"$(LS.BROWSER_RELOAD_SCRIPT)</body>")
+    hdict = Dict(response.headers)
+    @test occursin("text/html", hdict["Content-Type"])
     # if one asks for something incorrect, a 404 should be returned
     response = HTTP.get("http://localhost:$port/no.html"; status_exception=false)
     @test response.status == 404
