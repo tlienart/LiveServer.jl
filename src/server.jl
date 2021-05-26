@@ -259,7 +259,7 @@ directory. (See also [`example`](@ref) for an example folder).
 - `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
 - `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
 - `allow_cors::Bool=false` will allow cross origin (CORS) requests to access the server via the "Access-Control-Allow-Origin" header.
-- `preprocessrequest=identity`: specifies a function which can transform a request before a response is returned; its only argument is the current request.
+- `preprocess_request=identity`: specifies a function which can transform a request before a response is returned; its only argument is the current request.
 
 # Example
 
