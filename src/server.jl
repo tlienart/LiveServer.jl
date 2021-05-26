@@ -274,7 +274,7 @@ page and show the changes.
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
                host::String="127.0.0.1", port::Int=8000, dir::AbstractString="", verbose::Bool=false,
                coreloopfun::Function=(c, fw)->nothing,
-               preprocessrequest=identity,
+               preprocess_request=identity,
                inject_browser_reload_script::Bool = true,
                launch_browser::Bool = false,
                allow_cors::Bool = false)
