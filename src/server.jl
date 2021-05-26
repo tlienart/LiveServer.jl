@@ -291,7 +291,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
 
     # make request handler
     req_handler = HTTP.RequestHandlerFunction() do req
-        req = preprocessrequest(req)
+        req = preprocess_request(req)
         serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script, allow_cors = allow_cors)
     end
 
