@@ -259,6 +259,7 @@ directory. (See also [`example`](@ref) for an example folder).
 - `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
 - `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
 - `allow_cors::Bool=false` will allow cross origin (CORS) requests to access the server via the "Access-Control-Allow-Origin" header.
+- `preprocess_request=identity`: specifies a function which can transform a request before a response is returned; its only argument is the current request.
 
 # Example
 
@@ -273,6 +274,7 @@ page and show the changes.
 function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
                host::String="127.0.0.1", port::Int=8000, dir::AbstractString="", verbose::Bool=false,
                coreloopfun::Function=(c, fw)->nothing,
+               preprocess_request=identity,
                inject_browser_reload_script::Bool = true,
                launch_browser::Bool = false,
                allow_cors::Bool = false)
@@ -288,7 +290,10 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     start(fw)
 
     # make request handler
-    req_handler = HTTP.RequestHandlerFunction(req -> serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script, allow_cors = allow_cors))
+    req_handler = HTTP.RequestHandlerFunction() do req
+        req = preprocess_request(req)
+        serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script, allow_cors = allow_cors)
+    end
 
     server = Sockets.listen(parse(IPAddr, host), port)
     url = "http://$(host == string(Sockets.localhost) ? "localhost" : host):$port"
