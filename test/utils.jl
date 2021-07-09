@@ -8,22 +8,25 @@
     write(joinpath("docs", "src", "index2.md"), "Random file")
 
     thispath = pwd()
-    makejl = joinpath(thispath, "make.jl")
+    makejlpath = joinpath(thispath, "docs", "make.jl")
 
     # this is a slight of hand to increment a counter when `make.jl` is executed so that
     # we can check it's executed the appropriate number of times
     write("tempfile", "0")
-    write("make.jl", "c = parse(Int, read(\"tempfile\", String)); write(\"tempfile\", \"\$(c+1)\")")
+    write(joinpath("docs", "make.jl"),
+          """
+          c = parse(Int, read(\"tempfile\", String)); write(\"tempfile\", \"\$(c+1)\")
+          """
+    )
 
     readmake() = parse(Int, read("tempfile", String))
 
-    include(makejl)
+    include(makejlpath)
     @test readmake() == 1
 
     # callback function
     dw = LS.SimpleWatcher()
-
-    LS.servedocs_callback!(dw, makejl, makejl)
+    LS.servedocs_callback!(dw, makejl, "docs/make.jl", nothing, String[], "docs", "build")
 
     @test length(dw.watchedfiles) == 3
     @test dw.watchedfiles[1].path == joinpath("docs", "make.jl")

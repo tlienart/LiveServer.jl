@@ -1,65 +1,93 @@
 """
-    servedocs_callback!(docwatcher, filepath, path2makejl, literate, foldername)
+    servedocs_callback!(args...)
 
-Custom callback used in [`servedocs`](@ref) triggered when the file corresponding to `filepath`
-is changed. If that file is `docs/make.jl`, the callback will check whether any new files have
-been added in the `docs/src` folder and add them to the watched files, it will also remove any
-file that may have been deleted or renamed.
-Otherwise, if the modified file is in `docs/src` or is `docs/make.jl`, a pass of Documenter is
-triggered to regenerate the documents, subsequently the LiveServer will render the produced pages
-in `docs/build`.
-`foldername` can be set other than "docs" if needed.
-`buildfoldername` can be set other than "build" if needed.
+Custom callback used in [`servedocs`](@ref) triggered when a file is modified.
+
+If the file is `docs/make.jl`, the callback will check whether any new files
+have subsequently been generated in the `docs/src` folder and add them to the
+watched files, it will also remove any file that may have been deleted or
+renamed.
+
+If the file is either in `docs/src`, a pass of Documenter is triggered to
+regenerate the documentation, subsequently the LiveServer will render the
+pages produced in `docs/build`.
+
+## Arguments
+
+See the docs of the parent function `servedocs`.
 """
-function servedocs_callback!(dw::SimpleWatcher, fp::AbstractString, makejl::AbstractString,
-                             literate::String="", skip_dirs::Vector{String}=String[],
-                             foldername::String="docs", buildfoldername="build")
-    # ignore things happening in build (generated files etc)
+function servedocs_callback!(
+            dw::SimpleWatcher,
+            fp::AbstractString,
+            path2makejl::AbstractString,
+            literate::Union{Nothing,String},
+            skip_dirs::Vector{String},
+            foldername::String,
+            buildfoldername::String)
+    # ignore things happening in the build folder (generated files etc)
     startswith(fp, joinpath(foldername, buildfoldername)) && return nothing
-    if !isempty(skip_dirs)
-        for dir in skip_dirs
-            startswith(fp, dir) && return nothing
-        end
+
+    # ignore things happening in any skip_dirs
+    for dir in skip_dirs
+        startswith(fp, dir) && return nothing
     end
-    # if the file that was changed is the `make.jl` file, assume that maybe new files are # referenced and so refresh the vector of watched files as a result.
-    if fp == makejl
+
+    # if the file that was changed is the `make.jl` file, assume that maybe
+    # new files have been generated and so refresh the vector of watched files
+    if fp == path2makejl
         # it's easier to start from scratch (takes negligible time)
         empty!(dw.watchedfiles)
-        scan_docs!(dw, literate, foldername)
+        scan_docs!(dw, literate, foldername, makejl)
     end
-    fext = splitext(fp)[2]
-    P1 = fext ∈ (".md", ".jl", ".css")
-    # the second condition is for CSS files, we want to track it but not the output
-    # if we track the output then there's an infinite loop being triggered (see docstring)
-    if P1
-        Main.include(makejl)
-        file_changed_callback(fp)
-    end
-    return nothing
+
+    # Run a Documenter pass
+    Main.include(abspath(path2makejl))
+    file_changed_callback(fp)
+    return
 end
 
 
 """
-    scan_docs!(dw::SimpleWatcher, literate="", foldername="docs")
+    scan_docs!(dw::SimpleWatcher; kwargs...)
 
-Scans the `docs/` folder in order to recover the path to all files that have to be watched and add
-those files to `dw.watchedfiles`. The function returns the path to `docs/make.jl`. A list of
-folders and file paths can also be given for files that should be watched in addition to the
-content of `docs/src`. `foldername` can be changed if it's different than docs.
+Scans the `docs/` folder and add all relevant files to the watched files.
+
+## Arguments
+
+See the docs of the parent function `servedocs`.
 """
-function scan_docs!(dw::SimpleWatcher, literate::String="", foldername::String="docs")
+function scan_docs!(dw::SimpleWatcher,
+                    literate::Union{Nothing,String},
+                    foldername::String,
+                    path2makejl::String
+                    )::Nothing
+    # Typical expected structure:
+    #   docs
+    #   ├── make.jl
+    #   └── src
+    #       ├── *
+    #       └── *
     src = joinpath(foldername, "src")
     if !(isdir(foldername) && isdir(src))
         @error "I didn't find a $foldername/ or $foldername/src/ folder."
     end
-    makejl = joinpath(foldername, "make.jl")
-    push!(dw.watchedfiles, WatchedFile(makejl))
+    # watch the make.jl file as well as
+
+    @show path2makejl
+    push!(dw.watchedfiles, WatchedFile(path2makejl))
     if isdir(foldername)
         # add all files in `docs/src` to watched files
         for (root, _, files) ∈ walkdir(joinpath(foldername, "src")), file ∈ files
             push!(dw.watchedfiles, WatchedFile(joinpath(root, file)))
         end
     end
+
+    # if the user is not using Literate, return early
+    literate === nothing && return
+
+    # If the user gave a specific directory for literate files, add all the
+    # files in that directory to the watched files.
+    # If the user did not (literate === "") then these files are already watched.
     if !isempty(literate)
         isdir(literate) || @error "I didn't find the provided literate folder $literate."
         for (root, _, files) ∈ walkdir(literate), file ∈ files
@@ -67,32 +95,39 @@ function scan_docs!(dw::SimpleWatcher, literate::String="", foldername::String="
         end
     end
 
-    # When using literate.jl, we should only watch the source file otherwise we would double
-    # trigger: first when the script.jl is modified then again when the script.md is created
-    # which would cause an infinite loop if both `script.jl` and `script.md` are watched.
+    # When using Literate, each script *.jl is assumed to generate a corresponding *.md
+    # file. Only the source (*.jl) file should be watched to avoid an infinite loop where
+    # 1. the script is executed, generates the .md file
+    # 2. the .md file is seen as modified, triggers the make.jl file
+    # 3. the make.jl file executes the script (↩1)
     # So here we remove from the watchlist all files.md that have a files.jl with the same path.
     remove = Int[]
     if isempty(literate)
-        # assumption is that the scripts are in `docs/src/...` and that the generated markdown
-        # goes in exactly the same spot so for instance:
-        # docs
-        # └── src
-        #     ├── index.jl
-        #     └── index.md
+        # assumption is that the scripts are in `docs/src/...` and that the
+        # generated markdown goes in exactly the same spot so for instance:
+        #   docs
+        #   └── src
+        #       ├── index.jl
+        #       └── index.md
         for wf ∈ dw.watchedfiles
             spath = splitext(wf.path)
+            # ignore non `*.jl` files
             spath[2] == ".jl" || continue
+            # if a `.jl` file is found, check if there's any corresponding `.md`
+            # file and, if so, remove that file from the watched files to avoid ∞
             k = findfirst(e -> splitext(e.path) == (spath[1], ".md"), dw.watchedfiles)
             k === nothing || push!(remove, k)
         end
     else
-        # assumption is that the scripts are in `literate/` and that the generated markdown goes
-        # in `docs/src` with the same relative paths so for instance:
-        # docs
-        # ├── lit
-        # │   └── index.jl
-        # └── src
-        #     └── index.md
+        # assumption is that the scripts are in a specific folder and that the
+        # generated markdown goes in `docs/src` with the same relative path
+        # so for instance:
+        #   docs
+        #   ├── literate
+        #   │   └── index.jl
+        #   └── src
+        #       └── index.md
+        # the logic is otherwise the same as above.
         for (root, _, files) ∈ walkdir(literate), file ∈ files
             spath = splitext(joinpath(root, file))
             spath[2] == ".jl" || continue
@@ -102,63 +137,102 @@ function scan_docs!(dw::SimpleWatcher, literate::String="", foldername::String="
         end
     end
     deleteat!(dw.watchedfiles, remove)
-    return makejl
+    return
 end
 
 
 """
-    servedocs(; verbose=false, literate="", doc_env=false, foldername="docs")
+    servedocs(; kwargs...)
 
-Can be used when developing a package to run the `docs/make.jl` file from Documenter.jl and
-then serve the `docs/build` folder with LiveServer.jl. This function assumes you are in the
-directory `[MyPackage].jl` with a subfolder `docs`.
+Can be used when developing a package to run the `docs/make.jl` file from
+Documenter.jl and then serve the `docs/build` folder with LiveServer.jl.
+This function assumes you are in the directory `[MyPackage].jl` with a
+subfolder `docs`.
 
-* `verbose=false` is a boolean switch to make the server print information about file changes and
-connections.
-* `literate=""` is the path to the folder containing the literate scripts, if left empty, it will be
-assumed that they are in `docs/src`.
-* `doc_env=false` is a boolean switch to make the server start by activating the doc environment or not (i.e. the `Project.toml` in `docs/`).
-* `skip_dir=""` is a subpath of `docs/` where modifications should not trigger the generation of the docs, this is useful for instance if you're using Weave and Weave generates some files in `docs/src/examples` in which case you should give `skip_dir=joinpath("docs","src","examples")`.
-* `skip_dirs=[]` same as `skip_dir`  but for a vector of such dirs. Takes precedence over `skip_dir`.
-* `foldername="docs"` specify the name of the content folder if different than "docs".
-* `buildfoldername="build"` specify the name of the build folder if different than "build".
-* `host="127.0.0.1"` where the server will start.
-* `port` is an integer between 8000 (default) and 9000.
-* `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
+## Keyword Arguments
+
+* `verbose=false`: boolean switch to make the server print information about
+                   file changes and connections.
+* `literate=nothing`: path to the folder containing the literate scripts; if
+                      nothing then it's assumed there's no literate script. If
+                      left empty, it's assumed that the literate scripts are in
+                      `docs/src`. Any `xxx.jl` file in the literate location is
+                      assumed to generate a `xxx.md` file which will not be
+                      watched to avoid ∞ loop.
+* `doc_env=false`: a boolean switch to make the server start by activating the
+                   doc environment or not (i.e. the `Project.toml` in `docs/`).
+* `skip_dir=""`: a subpath of `docs/` where modifications should not trigger
+                 the generation of the docs, this is useful for instance if
+                 you're using Weave and Weave generates some files in
+                 `docs/src/examples` in which case you should set
+                 `skip_dir=joinpath("docs","src","examples")`.
+* `skip_dirs=[]`: same as `skip_dir` but for a list of such dirs. Takes
+                  precedence over `skip_dir`.
+* `foldername="docs"`: specify a different path for the content.
+* `buildfoldername="build"`: specify a different path for the build.
+* `makejl="make.jl"`: path of the script generating the documentation relative
+                      to `foldername`.
+* `host="127.0.0.1"`: where the server will start.
+* `port=8000`: port number, an integer between 8000 (default) and 9000.
+* `launch_browser=false`: specifies whether to launch a browser at the
+                          localhost URL or not.
 """
-function servedocs(; verbose::Bool=false, literate::String="",
-                     doc_env::Bool=false, skip_dir::String="",
-                     skip_dirs::Vector{String}=String[],
-                     foldername::String="docs",
-                     buildfoldername::String="build",
-                     host::String="127.0.0.1", port::Int=8000,
-                     launch_browser::Bool = false)
-    # Custom file watcher: it's the standard `SimpleWatcher` but with a custom callback.
-    docwatcher = SimpleWatcher()
-
+function servedocs(;
+            verbose::Bool=false,
+            literate::Union{Nothing,String}=nothing,
+            doc_env::Bool=false,
+            skip_dir::String="",
+            skip_dirs::Vector{String}=String[],
+            foldername::String="docs",
+            buildfoldername::String="build",
+            makejl::String="make.jl",
+            host::String="127.0.0.1",
+            port::Int=8000,
+            launch_browser::Bool=false
+            )::Nothing
+    # skip_dirs takes precedence over skip_dir
     if isempty(skip_dirs) && !isempty(skip_dir)
         skip_dirs = [skip_dir]
     end
 
-    set_callback!(docwatcher,
-                  fp->servedocs_callback!(docwatcher, fp, makejl, literate, skip_dirs, foldername, buildfoldername))
+    path2makejl = joinpath(foldername, makejl)
 
-    # Retrieve files to watch
-    makejl = scan_docs!(docwatcher, literate, foldername)
+    # The file watcher is a default SimpleWatcher with a custom
+    # callback
+    docwatcher = SimpleWatcher()
+    set_callback!(
+        docwatcher,
+        fp -> servedocs_callback!(
+                docwatcher, fp, path2makejl,
+                literate, skip_dirs, foldername, buildfoldername
+        )
+    )
 
-    if doc_env
-        Pkg.activate("$foldername/Project.toml")
-    end
+    # Scan the folder and update the list of files to watch
+    scan_docs!(docwatcher, literate, foldername, path2makejl)
+
+    # activate the doc environment if required
+    doc_env && Pkg.activate(joinpath(foldername, "Project.toml"))
+
     # trigger a first pass of Documenter (& possibly Literate)
-    Main.include(abspath(makejl))
+    Main.include(abspath(path2makejl))
 
-    # note the `docs/build` exists here given that if we're here it means the documenter
-    # pass did not error and therefore that a docs/build has been generated.
-    serve(docwatcher, host=host, port=port, dir=joinpath(foldername, buildfoldername), verbose=verbose, launch_browser=launch_browser)
-    if doc_env
-        Pkg.activate()
-    end
-    return nothing
+    # note the `docs/build` exists here given that if we're here it means
+    # the documenter pass did not error and, therefore that a docs/build
+    # has been generated.
+    # So we can now serve.
+    serve(
+        docwatcher,
+        host=host,
+        port=port,
+        dir=joinpath(foldername, buildfoldername),
+        verbose=verbose,
+        launch_browser=launch_browser
+    )
+
+    # when the serve loop is interrupted, de-activate the environment
+    doc_env && Pkg.activate()
+    return
 end
 
 
@@ -225,7 +299,7 @@ const MAKE_JL = raw"""
     """
 
 """
-servedocs_literate_example(dir="servedocs_literate_example")
+    servedocs_literate_example(dir="servedocs_literate_example")
 
 Generates a folder with the right structure for servedocs+literate example.
 You can then `cd` to that folder and use servedocs:
