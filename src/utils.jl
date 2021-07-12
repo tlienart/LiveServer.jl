@@ -26,7 +26,6 @@ function servedocs_callback!(
             buildfoldername::String)
     # ignore things happening in the build folder (generated files etc)
     startswith(fp, joinpath(foldername, buildfoldername)) && return nothing
-
     # ignore things happening in any skip_dirs
     for dir in skip_dirs
         startswith(fp, dir) && return nothing
@@ -37,7 +36,7 @@ function servedocs_callback!(
     if fp == path2makejl
         # it's easier to start from scratch (takes negligible time)
         empty!(dw.watchedfiles)
-        scan_docs!(dw, literate, foldername, makejl)
+        scan_docs!(dw, foldername, path2makejl, literate)
     end
 
     # Run a Documenter pass
@@ -48,7 +47,7 @@ end
 
 
 """
-    scan_docs!(dw::SimpleWatcher; kwargs...)
+    scan_docs!(dw::SimpleWatcher, args...)
 
 Scans the `docs/` folder and add all relevant files to the watched files.
 
@@ -57,9 +56,9 @@ Scans the `docs/` folder and add all relevant files to the watched files.
 See the docs of the parent function `servedocs`.
 """
 function scan_docs!(dw::SimpleWatcher,
-                    literate::Union{Nothing,String},
                     foldername::String,
-                    path2makejl::String
+                    path2makejl::String,
+                    literate::Union{Nothing,String}
                     )::Nothing
     # Typical expected structure:
     #   docs
@@ -68,12 +67,12 @@ function scan_docs!(dw::SimpleWatcher,
     #       ├── *
     #       └── *
     src = joinpath(foldername, "src")
-    if !(isdir(foldername) && isdir(src))
-        @error "I didn't find a $foldername/ or $foldername/src/ folder."
+
+    if !isdir(foldername) || !isdir(src)
+        error("I didn't find a $foldername/ or $foldername/src/ folder.")
     end
     # watch the make.jl file as well as
 
-    @show path2makejl
     push!(dw.watchedfiles, WatchedFile(path2makejl))
     if isdir(foldername)
         # add all files in `docs/src` to watched files
@@ -89,7 +88,7 @@ function scan_docs!(dw::SimpleWatcher,
     # files in that directory to the watched files.
     # If the user did not (literate === "") then these files are already watched.
     if !isempty(literate)
-        isdir(literate) || @error "I didn't find the provided literate folder $literate."
+        isdir(literate) || error("I didn't find the provided literate folder $literate.")
         for (root, _, files) ∈ walkdir(literate), file ∈ files
             push!(dw.watchedfiles, WatchedFile(joinpath(root, file)))
         end
@@ -209,7 +208,7 @@ function servedocs(;
     )
 
     # Scan the folder and update the list of files to watch
-    scan_docs!(docwatcher, literate, foldername, path2makejl)
+    scan_docs!(docwatcher, foldername, path2makejl, literate)
 
     # activate the doc environment if required
     doc_env && Pkg.activate(joinpath(foldername, "Project.toml"))
@@ -302,13 +301,14 @@ const MAKE_JL = raw"""
     servedocs_literate_example(dir="servedocs_literate_example")
 
 Generates a folder with the right structure for servedocs+literate example.
+Requires Documenter and Literate.
 You can then `cd` to that folder and use servedocs:
 
 ```
-julia> using LiveServer
+julia> using LiveServer, Documenter, Literate
 julia> LiveServer.servedocs_literate_example()
 julia> cd("servedocs_literate_example")
-julia> servedocs(literate=joinpath("docs","literate"))
+julia> servedocs(literate=joinpath("docs", "literate"))
 ```
 """
 function servedocs_literate_example(dirname="servedocs_literate_example")
