@@ -106,7 +106,7 @@ function file_watcher_task!(fw::FileWatcher)
         fw.status = :interrupted
         # an InterruptException is the normal way for this task to end
         if !isa(err, InterruptException)
-            @error "An error happened whilst watching files; shutting down. Error was: $err"
+            error("An error happened whilst watching files; shutting down. Error was: $err")
         end
         return nothing
     end
