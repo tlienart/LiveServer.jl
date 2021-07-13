@@ -4,8 +4,9 @@ module LiveServer
 using Sockets, Pkg
 # the only dependency (see the patch in http_patch.jl)
 using HTTP
+import Weave
 
-export serve, servedocs
+export serve, servedocs, serveweave
 
 #
 # Environment variables
@@ -45,7 +46,7 @@ end
 include("mimetypes.jl")
 include("file_watching.jl")
 include("server.jl")
-
 include("utils.jl")
+include("weave.jl")
 
 end # module
