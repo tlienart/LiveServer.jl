@@ -246,7 +246,7 @@ end
 """
     trigger_compilation(host, port)
 
-Trigger compilation on the the server machinery. In many cases, this reduces the user
+Trigger compilation on the the server machinery. In many cases, this improves the user
 experience because the compilation starts immediately once the server is running. Without
 this, the compilation would not start until the user navigates to the server via the
 browser.
