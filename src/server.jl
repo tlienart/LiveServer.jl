@@ -243,6 +243,19 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
     return nothing
 end
 
+"""
+    trigger_compilation(host, port)
+
+Trigger compilation on the the server machinery. In many cases, this reduces the user
+experience because the compilation starts immediately once the server is running. Without
+this, the compilation would not start until the user navigates to the server via the
+browser.
+"""
+function trigger_compilation(host, port)
+    sleep(0.3)
+    url = "http://$host:$port"
+    HTTP.get(url; status_exception=false)
+end
 
 """
     serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing, inject_browser_reload_script::Bool = true, launch_browser::Bool = false, allow_cors::Bool = false)
@@ -258,6 +271,7 @@ directory. (See also [`example`](@ref) for an example folder).
 - `verbose` is a boolean switch to make the server print information about file changes and connections.
 - `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
 - `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
+- `force_compilation=true` specifies whether to trigger compilation as soon as the server is running. For users who don't open the browser immediately, this can speed up the time between calling `serve` and seeing the webpage.
 - `allow_cors::Bool=false` will allow cross origin (CORS) requests to access the server via the "Access-Control-Allow-Origin" header.
 - `preprocess_request=identity`: specifies a function which can transform a request before a response is returned; its only argument is the current request.
 
@@ -277,6 +291,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
                preprocess_request=identity,
                inject_browser_reload_script::Bool = true,
                launch_browser::Bool = false,
+               force_compilation::Bool = true,
                allow_cors::Bool = false)
 
     8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
@@ -310,6 +325,10 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
             # handle HTTP request
             HTTP.handle(req_handler, http)
         end
+    end
+
+    if force_compilation
+        @async trigger_compilation(host, port)
     end
 
     launch_browser && open_in_default_browser(url)

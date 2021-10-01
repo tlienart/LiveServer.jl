@@ -65,6 +65,13 @@ tasks that you will try to start.
     #
     # STEP 2: triggering a request
     #
+    url = "http://localhost:$port/"
+
+    # Using allocations to test `trigger_compilation` because it is more robust than runtime.
+    sleep(8)
+    allocations = @allocated HTTP.get(url)
+    @test allocations < 100_000_000
+
     response = HTTP.get("http://localhost:$port/")
     @test response.status == 200
     # the browser script should be appended
