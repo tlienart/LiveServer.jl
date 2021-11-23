@@ -24,7 +24,13 @@ Check if a `WatchedFile` has changed. Returns -1 if the file does not exist, 0 i
 has not changed, and 1 if it has changed.
 """
 function has_changed(wf::WatchedFile)
-    isfile(wf.path) || return -1
+    if !isfile(wf.path)
+        # isfile may return false for a file
+        # currently being written. Wait for 0.1s 
+        # then retry once more:
+        sleep(0.1)
+        isfile(wf.path) || return -1
+    end
     return Int(mtime(wf.path) > wf.mtime)
 end
 
