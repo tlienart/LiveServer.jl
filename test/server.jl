@@ -127,7 +127,7 @@ tasks that you will try to start.
     rm("tmp.html")
     rm("css", recursive=true)
     rm("404", recursive=true)
-    sleep(0.25)
+    sleep(0.5)
     # only index.html is still watched
     @test length(fw.watchedfiles) == 1
 
