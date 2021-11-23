@@ -25,8 +25,11 @@ has not changed, and 1 if it has changed.
 """
 function has_changed(wf::WatchedFile)
     if !isfile(wf.path)
-      sleep(0.1)
-      isfile(wf.path) || return -1
+        # isfile may return false for a file
+        # currently being written. Wait for 0.1s 
+        # then retry once more:
+        sleep(0.1)
+        isfile(wf.path) || return -1
     end
     return Int(mtime(wf.path) > wf.mtime)
 end
