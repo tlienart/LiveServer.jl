@@ -182,7 +182,7 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
         end
         # If still not found a body, return a generic error message
         if isempty(fs_path)
-            index_page = get_dir_list(req.target)  # 基本实现功能
+            index_page = get_dir_list(req.target)
             return HTTP.Response(200, index_page)
             # return HTTP.Response(404, "404: file not found. Perhaps you made a typo " *
             #                           "in the URL, or the requested file has been " *
