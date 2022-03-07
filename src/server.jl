@@ -121,20 +121,28 @@ function get_dir_list(dir::AbstractString)
     enc = "utf-8"  # sys.getfilesystemencoding()
     title = "Directory listing for $(dir)"
     write(io, """
-    <!DOCTYPE HTML>
-    <html>
-     <head>
-    """)
-    write(io, """<meta http-equiv="Content-Type" content="text/html; charset=$(enc)">""")
-    write(io, """<title>$(title)</title>\n</head>""")
-    write(io, """<body>\n<h1>$(title)</h1>""")
-    write(io, """<hr>\n<ul>""")
+        <!DOCTYPE HTML>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>$(title)</title>
+          </head>
+          <body>
+            <h1>$(title)</h1>
+            <hr>
+            <ul>
+        """
+    )
 
     if isfile(path)
         linkname = path
         displayname = basename(path)
-        write(io, """<li><a href="$(linkname)">$(displayname)</a></li>""")
-        list = []
+        write(io, """
+            <li><a href="$(linkname)">$(displayname)</a></li>
+            """
+        )
+        empty!(list)
     end
 
     for name in list
@@ -149,12 +157,19 @@ function get_dir_list(dir::AbstractString)
             displayname = name * "@"
             # Note: a link to a directory displays with @ and links with /
         end
-        write(io, """<li><a href="$(linkname)">$(displayname)</a></li>""")
+        write(io, """
+            <li><a href="$(linkname)">$(displayname)</a></li>
+            """
+        )
     end
-    write(io, """</ul>\n<hr>\n</body>\n</html>\n""")
-    index_page = take!(io)
-
-    return index_page
+    write(io, """
+            </ul>
+            <hr>
+          </body>
+        </html>
+        """
+    )
+    return String(take!(io))
 end
 
 """
