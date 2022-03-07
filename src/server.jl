@@ -80,20 +80,23 @@ String if the file was not found.
 """
 function get_fs_path(req_path::AbstractString)::String
     uri = HTTP.URI(req_path)
-    # first element after the split is **always** "/"
-    r_parts = HTTP.URIs.unescapeuri.(split(uri.path[2:end], "/"))
+    # first element after the split is **always** "/" --> 2:end
+    r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), "/"))
     fs_path = joinpath(r_parts...)
+
     if !isempty(CONTENT_DIR[])
         fs_path = joinpath(CONTENT_DIR[], fs_path)
     end
-    # if no file is specified, try to append `index.html` and see
-    endswith(uri.path, "/") && (fs_path = joinpath(fs_path, "index.html"))
-    # either the result is a valid file path in which case it's returned otherwise ""
-    if isfile(fs_path) || isdir(fs_path)
-        return fs_path
-    else
-        return ""
+
+    # if it ends with `/` try to see if there's an index.html
+    if endswith(uri.path, '/')
+        tmp = joinpath(fs_path, "index.html")
+        isfile(tmp) && return tmp
     end
+    # otherwise return the path if it exists (file or dir)
+    (isfile(fs_path) || isdir(fs_path)) && return fs_path
+    # otherwise --> this will lead to a 404
+    return ""
 end
 
 """
@@ -113,58 +116,55 @@ end
 Generate list of content at path `dir`.
 """
 function get_dir_list(dir::AbstractString)
-    path = joinpath(abspath(CONTENT_DIR[]), lstrip(dir, ['/', '\\']))
-    if isdir(path)
-        list = readdir(path; join=false, sort=true)
-    end
-    io = IOBuffer()
-    enc = "utf-8"  # sys.getfilesystemencoding()
-    title = "Directory listing for $(dir)"
+    list = readdir(dir; join=true, sort=true)
+    io   = IOBuffer()
     write(io, """
         <!DOCTYPE HTML>
         <html>
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>$(title)</title>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss">
+            <title>Directory listing for '$dir'</title>
+            <style>
+            a {text-decoration: none;}
+            </style>
           </head>
           <body>
-            <h1>$(title)</h1>
-            <hr>
+            <h1 style='margin-top: 3em;'>
+              Directory listing for '<code style='color:gray;'>$(dir)</code>'
+            </h1>
+            <br> <hr>
             <ul>
         """
     )
 
-    if isfile(path)
-        linkname = path
-        displayname = basename(path)
+    list_files = [f for f in list if isfile(f)]
+    list_dirs  = [d for d in list if d ∉ list_files]
+
+    for fullname in list_files
+        name = splitdir(fullname)[end]
+        post = ifelse(islink(fullname), " @", "")
         write(io, """
-            <li><a href="$(linkname)">$(displayname)</a></li>
+            <li><a href="/$(fullname)">$(name)$(post)</a></li>
             """
         )
-        empty!(list)
     end
-
-    for name in list
-        fullname = joinpath(path, name)
-        displayname = linkname = name
-        # Append / for directories or @ for symbolic links
-        if isdir(fullname)
-            displayname = name * "/"
-            linkname = name * "/"
-        end
-        if islink(fullname)
-            displayname = name * "@"
-            # Note: a link to a directory displays with @ and links with /
-        end
+    for fullname in list_dirs
+        name = splitdir(fullname)[end]
+        pre  = "📂 "
+        post = ifelse(islink(fullname), " @", "")
         write(io, """
-            <li><a href="$(linkname)">$(displayname)</a></li>
+            <li><a href="/$(fullname)">$(pre)$(name)$(post)</a></li>
             """
         )
     end
     write(io, """
             </ul>
-            <hr>
+            <hr> <br>
+            <a href="/">🏠 root</a>
+            <br>
+            <a href="https://github.com/tlienart/LiveServer.jl">💻 LiveServer.jl</a>
           </body>
         </html>
         """
@@ -173,21 +173,47 @@ function get_dir_list(dir::AbstractString)
 end
 
 """
-    serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true)
+    serve_file(fw, req::HTTP.Request; inject_browser_reload_script = true)
 
-Handler function for serving files. This takes a file watcher, to which files to be watched can be
-added, and a request (e.g. a path entered in a tab of the browser), and converts it to the
-appropriate file system path. If the path corresponds to a HTML file, it will inject the reloading
-`<script>` (see file `client.html`) at the end of its body, i.e. directly before the `</body>` tag.
-All files served are added to the file watcher, which is responsible to check whether they're
-already watched or not. Finally the file is served via a 200 (successful) response. If the file
-does not exist, a response with status 404 and an according message is sent.
+Handler function for serving files. This takes a file watcher, to which files
+to be watched can be added, and a request (e.g. a path entered in a tab of the
+browser), and converts it to the appropriate file system path.
+
+The cases are as follows:
+1. the path corresponds exactly to a file. If it's a html-like file,
+    LiveServer will try injecting the reloading `<script>` (see file
+    `client.html`) at the end, just before the `</body>` tag.
+2. the path corresponds to a directory in which there is an `index.html`,
+    same action as (1) assuming the `index.html` is implicit.
+3. the path corresponds to a directory in which there is not an `index.html`,
+    list the directory contents.
+4. not (1,2,3), a 404 is served.
+
+All files served are added to the file watcher, which is responsible to check
+whether they're already watched or not. Finally the file is served via a 200
+(successful) response. If the file does not exist, a response with status 404
+and message is returned.
 """
-function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true, allow_cors::Bool = false)
+function serve_file(
+            fw, req::HTTP.Request;
+            inject_browser_reload_script::Bool = true,
+            allow_cors::Bool = false
+        )::HTTP.Response
+
     ret_code = 200
-    fs_path = get_fs_path(req.target)
-    # in case the path was not resolved, return a 404
+    fs_path  = get_fs_path(req.target)
+
+    # if get_fs_path returns an empty string, there's two cases:
+    # 1. the path is a directory without an `index.html` --> list dir
+    # 2. otherwise serve a 404 (see if there's a dedicated 404 path,
+    #     otherwise just use a basic one).
     if isempty(fs_path)
+
+        if req.target == "/"
+            index_page = get_dir_list(".")
+            return HTTP.Response(200, index_page)
+        end
+
         ret_code = 404
         # Check if /404/ or /404.html exists and serve that as a body
         for f in ("/404/", "/404.html")
@@ -197,30 +223,43 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
                 break
             end
         end
+
         # If still not found a body, return a generic error message
         if isempty(fs_path)
-            index_page = get_dir_list(req.target)
-            return HTTP.Response(200, index_page)
+            return HTTP.Response(404, """
+                404: file not found. Perhaps you made a typo in the URL,
+                or the requested file has been deleted or renamed.
+                """
+            )
         end
     end
 
-    # Respond with 301 if the path is a directory
     if isdir(fs_path)
-        return HTTP.Response(301, ["Location" => append_slash(req.target)])
+        index_page = get_dir_list(fs_path)
+        return HTTP.Response(200, index_page)
     end
+
+    #
+    # In what follows, fs_path points to a file
+    # --> html-like: try to inject reload-script
+    # --> other: just get the browser to show it
+    #
 
     ext = last(splitext(fs_path))[2:end]
     content = read(fs_path, String)
 
     # build the response with appropriate mime type (this is inspired from Mux
     # https://github.com/JuliaWeb/Mux.jl/blob/master/src/examples/files.jl)
-    mime = get(MIME_TYPES, ext, "application/octet-stream")
+    mime = get(MIME_TYPES, ext, "text/plain")
 
-    # if html, add the browser-sync script to it
-    if (inject_browser_reload_script) && (mime in ["text/html", "application/xhtml+xml"])
+    # if html-like, try adding the browser-sync script to it
+    inject_reload = inject_browser_reload_script &&
+                      mime in ("text/html", "application/xhtml+xml")
+    if inject_reload
         end_body_match = match(r"</body>", content)
         if end_body_match === nothing
-            # no </body> tag found, trying to add the reload script at the end; this may fail.
+            # no </body> tag found, trying to add the reload script at the
+            # end. This may fail.
             content *= BROWSER_RELOAD_SCRIPT
         else
             end_body = prevind(content, end_body_match.offset)
@@ -237,8 +276,8 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
     if allow_cors
         push!(headers, "Access-Control-Allow-Origin" => "*")
     end
-    resp = HTTP.Response(ret_code, content)
-    isempty(headers) || (resp.headers = HTTP.mkheaders(headers))
+    resp         = HTTP.Response(ret_code, content)
+    resp.headers = HTTP.mkheaders(headers)
 
     # add the file to the file watcher
     watch_file!(fw, fs_path)
@@ -275,7 +314,8 @@ corresponding to the targeted file.
 """
 function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
     # add to list of html files being "watched"
-    # NOTE: this file always exists because the query is generated just after serving it
+    # NOTE: this file always exists because the query is generated just after
+    # serving it
     fs_path = get_fs_path(target)
 
     # if the file is already being viewed, add ws to it (e.g. several tabs)
@@ -301,9 +341,9 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
         # we make the assumption it's always the case (note that it can cause other
         # errors than InterruptException, for instance it can cause errors due to
         # stream not being available etc but these all have the same source).
-        # - We therefore do not propagate the error but merely store the information that
-        # there was a forcible interruption of the websocket so that the interruption
-        # can be guaranteed to be propagated.
+        # - We therefore do not propagate the error but merely store the information
+        # that there was a forcible interruption of the websocket so that the
+        # interruption can be guaranteed to be propagated.
         WS_INTERRUPT[] = true
     end
     return nothing
