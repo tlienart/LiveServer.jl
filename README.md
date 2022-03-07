@@ -33,6 +33,20 @@ julia> serve() # starts the local server & the file watching
 
 Open a Browser and go to `http://localhost:8000/` to see the content being rendered; try modifying files (e.g. `index.html`) and watch the changes being rendered immediately in the browser.
 
+```julia-repl
+julia> using LiveServer
+julia> serve(host="0.0.0.0", port=8001, dir=".") # starts the remote server & the file watching
+✓ LiveServer listening on http://0.0.0.0:8001...
+  (use CTRL+C to shut down)
+```
+```julia-repl
+julia -e 'using LiveServer; serve(host="0.0.0.0", port=8001, dir=".")'
+such as: 
+python3 -m http.server 8001
+```
+
+Open a Browser and go to `http://remote_ip:8001/` to see the remote host file list; You can set dir="you/want/share/path" to show file list as file server. You can set port to custom. It's function same as Python's [`http.server`](https://docs.python.org/3/library/http.server.html)
+
 ### Serve docs
 
 `servedocs` is a convenience function that runs `Documenter` along with `LiveServer` to watch your doc files for any changes and render them in your browser when modifications are detected.  
