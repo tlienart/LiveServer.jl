@@ -81,7 +81,7 @@ String if the file was not found.
 function get_fs_path(req_path::AbstractString)::String
     uri = HTTP.URI(req_path)
     # first element after the split is **always** "/" --> 2:end
-    r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), "/"))
+    r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), '/'))
     fs_path = joinpath(r_parts...)
 
     if !isempty(CONTENT_DIR[])
@@ -111,13 +111,24 @@ function append_slash(url_str::AbstractString)
 end
 
 """
+    lstrip_cdir(s)
+
+Discard the 'CONTENT_DIR' part (passed via `dir=...`) of a path.
+"""
+lstrip_cdir(s::AbstractString) =
+    lstrip(s[nextind(s, length(CONTENT_DIR[])):end], ['/', '\\'])
+
+"""
     get_dir_list(dir::AbstractString) -> index_page::AbstractString
 
 Generate list of content at path `dir`.
 """
 function get_dir_list(dir::AbstractString)
-    list = readdir(dir; join=true, sort=true)
-    io   = IOBuffer()
+    list   = readdir(dir; join=true, sort=true)
+    io     = IOBuffer()
+    predir = ifelse(isempty(CONTENT_DIR[]), "", "[$(append_slash(CONTENT_DIR[]))]")
+    sdir   = predir * lstrip_cdir(dir)
+
     write(io, """
         <!DOCTYPE HTML>
         <html>
@@ -125,15 +136,18 @@ function get_dir_list(dir::AbstractString)
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss">
-            <title>Directory listing for '$dir'</title>
+            <title>Directory listing</title>
             <style>
             a {text-decoration: none;}
             </style>
           </head>
           <body>
             <h1 style='margin-top: 3em;'>
-              Directory listing for '<code style='color:gray;'>$(dir)</code>'
+              Directory listing
             </h1>
+            <h2>
+              <code style='color:gray;'>$(sdir)</code>
+            </h2>
             <br> <hr>
             <ul>
         """
@@ -142,20 +156,22 @@ function get_dir_list(dir::AbstractString)
     list_files = [f for f in list if isfile(f)]
     list_dirs  = [d for d in list if d ∉ list_files]
 
-    for fullname in list_files
-        name = splitdir(fullname)[end]
-        post = ifelse(islink(fullname), " @", "")
+    for fname in list_files
+        link = lstrip_cdir(fname)
+        name = splitdir(fname)[end]
+        post = ifelse(islink(fname), " @", "")
         write(io, """
-            <li><a href="/$(fullname)">$(name)$(post)</a></li>
+            <li><a href="/$(link)">$(name)$(post)</a></li>
             """
         )
     end
-    for fullname in list_dirs
-        name = splitdir(fullname)[end]
+    for fdir in list_dirs
+        link = lstrip_cdir(fdir)
+        name = splitdir(fdir)[end]
         pre  = "📂 "
-        post = ifelse(islink(fullname), " @", "")
+        post = ifelse(islink(fdir), " @", "")
         write(io, """
-            <li><a href="/$(fullname)">$(pre)$(name)$(post)</a></li>
+            <li><a href="/$(link)">$(pre)$(name)$(post)</a></li>
             """
         )
     end
