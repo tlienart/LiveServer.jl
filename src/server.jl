@@ -114,7 +114,6 @@ Get dir list of current path. generate a index page html.
 target is current dir path.
 """
 function get_dir_list(target::AbstractString)
-    println("===========:", joinpath(abspath(CONTENT_DIR[]), target[2:end]))
     path = joinpath(abspath(CONTENT_DIR[]), target[2:end])
     if isdir(path)
         list = readdir(path; join=false, sort=true)
@@ -183,9 +182,8 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
         end
         # If still not found a body, return a generic error message
         if isempty(fs_path)
-            # println("aaaaaa:", CONTENT_DIR[], ", ", req.target, ", ", abspath(CONTENT_DIR[]))
-            encoded = get_dir_list(req.target)  # 基本实现功能
-            return HTTP.Response(200, encoded)
+            index_page = get_dir_list(req.target)  # 基本实现功能
+            return HTTP.Response(200, index_page)
             # return HTTP.Response(404, "404: file not found. Perhaps you made a typo " *
             #                           "in the URL, or the requested file has been " *
             #                           "deleted or renamed.")
