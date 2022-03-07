@@ -1,3 +1,5 @@
+using Base.Filesystem
+
 """
     open_in_default_browser(url)
 
@@ -106,6 +108,55 @@ function append_slash(url_str::AbstractString)
 end
 
 """
+    get_dir_list(target::AbstractString) -> index_page::AbstractString
+
+Get dir list of current path. generate a index page html.
+target is current dir path.
+"""
+function get_dir_list(target::AbstractString)
+    println("===========:", joinpath(abspath(CONTENT_DIR[]), target[2:end]))
+    path = joinpath(abspath(CONTENT_DIR[]), target[2:end])
+    if isdir(path)
+        list = readdir(path; join=false, sort=true)
+    end
+    r = []
+    enc = "utf-8"  # sys.getfilesystemencoding()
+    title = "Directory listing for $(target)"
+    push!(r, """<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">""")
+    push!(r, """<html>\n<head>""")
+    push!(r, """<meta http-equiv="Content-Type" content="text/html; charset=$(enc)">""")
+    push!(r, """<title>$(title)</title>\n</head>""")
+    push!(r, """<body>\n<h1>$(title)</h1>""")
+    push!(r, """<hr>\n<ul>""")
+
+    if isfile(path)
+        linkname = path
+        displayname = basename(path)
+        push!(r, """<li><a href="$(linkname)">$(displayname)</a></li>""")
+        list = []
+    end
+
+    for name in list
+        fullname = joinpath(path, name)
+        displayname = linkname = name
+        # Append / for directories or @ for symbolic links
+        if isdir(fullname)
+            displayname = name * "/"
+            linkname = name * "/"
+        end
+        if islink(fullname)
+            displayname = name * "@"
+            # Note: a link to a directory displays with @ and links with /
+        end
+        push!(r, """<li><a href="$(linkname)">$(displayname)</a></li>""")
+    end
+    push!(r, """</ul>\n<hr>\n</body>\n</html>\n""")
+    index_page = join(r, "\n")
+
+    return index_page
+end
+
+"""
     serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = true)
 
 Handler function for serving files. This takes a file watcher, to which files to be watched can be
@@ -132,9 +183,12 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
         end
         # If still not found a body, return a generic error message
         if isempty(fs_path)
-            return HTTP.Response(404, "404: file not found. Perhaps you made a typo " *
-                                      "in the URL, or the requested file has been " *
-                                      "deleted or renamed.")
+            # println("aaaaaa:", CONTENT_DIR[], ", ", req.target, ", ", abspath(CONTENT_DIR[]))
+            encoded = get_dir_list(req.target)  # 基本实现功能
+            return HTTP.Response(200, encoded)
+            # return HTTP.Response(404, "404: file not found. Perhaps you made a typo " *
+            #                           "in the URL, or the requested file has been " *
+            #                           "deleted or renamed.")
         end
     end
 
