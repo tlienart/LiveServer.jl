@@ -40,9 +40,10 @@ julia> serve(host="0.0.0.0", port=8001, dir=".") # starts the remote server & th
 ✓ LiveServer listening on http://0.0.0.0:8001...
   (use CTRL+C to shut down)
 ```
+
 In the terminal:
 ```julia-repl
-julia -e 'using LiveServer; serve(host="0.0.0.0", port=8001, dir=".")'  # like as: python -m http.server 8001
+julia -e 'using LiveServer; serve(host="0.0.0.0", port=8001, dir=".")'
 ```
 
 Open a browser and go to https://localhost:8001/ to see the rendered content of index.html or, if it doesn't exist, the content of the directory.
