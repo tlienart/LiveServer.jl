@@ -108,30 +108,32 @@ function append_slash(url_str::AbstractString)
 end
 
 """
-    get_dir_list(target::AbstractString) -> index_page::AbstractString
+    get_dir_list(dir::AbstractString) -> index_page::AbstractString
 
-Get dir list of current path. generate a index page html.
-target is current dir path.
+Generate list of content at path `dir`.
 """
-function get_dir_list(target::AbstractString)
-    path = joinpath(abspath(CONTENT_DIR[]), target[2:end])
+function get_dir_list(dir::AbstractString)
+    path = joinpath(abspath(CONTENT_DIR[]), lstrip(dir, ['/', '\\']))
     if isdir(path)
         list = readdir(path; join=false, sort=true)
     end
-    r = []
+    io = IOBuffer()
     enc = "utf-8"  # sys.getfilesystemencoding()
-    title = "Directory listing for $(target)"
-    push!(r, """<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">""")
-    push!(r, """<html>\n<head>""")
-    push!(r, """<meta http-equiv="Content-Type" content="text/html; charset=$(enc)">""")
-    push!(r, """<title>$(title)</title>\n</head>""")
-    push!(r, """<body>\n<h1>$(title)</h1>""")
-    push!(r, """<hr>\n<ul>""")
+    title = "Directory listing for $(dir)"
+    write(io, """
+    <!DOCTYPE HTML>
+    <html>
+     <head>
+    """)
+    write(io, """<meta http-equiv="Content-Type" content="text/html; charset=$(enc)">""")
+    write(io, """<title>$(title)</title>\n</head>""")
+    write(io, """<body>\n<h1>$(title)</h1>""")
+    write(io, """<hr>\n<ul>""")
 
     if isfile(path)
         linkname = path
         displayname = basename(path)
-        push!(r, """<li><a href="$(linkname)">$(displayname)</a></li>""")
+        write(io, """<li><a href="$(linkname)">$(displayname)</a></li>""")
         list = []
     end
 
@@ -147,10 +149,10 @@ function get_dir_list(target::AbstractString)
             displayname = name * "@"
             # Note: a link to a directory displays with @ and links with /
         end
-        push!(r, """<li><a href="$(linkname)">$(displayname)</a></li>""")
+        write(io, """<li><a href="$(linkname)">$(displayname)</a></li>""")
     end
-    push!(r, """</ul>\n<hr>\n</body>\n</html>\n""")
-    index_page = join(r, "\n")
+    write(io, """</ul>\n<hr>\n</body>\n</html>\n""")
+    index_page = take!(io)
 
     return index_page
 end
@@ -184,9 +186,6 @@ function serve_file(fw, req::HTTP.Request; inject_browser_reload_script::Bool = 
         if isempty(fs_path)
             index_page = get_dir_list(req.target)
             return HTTP.Response(200, index_page)
-            # return HTTP.Response(404, "404: file not found. Perhaps you made a typo " *
-            #                           "in the URL, or the requested file has been " *
-            #                           "deleted or renamed.")
         end
     end
 
