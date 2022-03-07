@@ -118,7 +118,6 @@ function get_dir_list(dir::AbstractString)
         list = readdir(path; join=false, sort=true)
     end
     io = IOBuffer()
-    enc = "utf-8"  # sys.getfilesystemencoding()
     title = "Directory listing for $(dir)"
     write(io, """
         <!DOCTYPE HTML>
@@ -142,7 +141,7 @@ function get_dir_list(dir::AbstractString)
             <li><a href="$(linkname)">$(displayname)</a></li>
             """
         )
-        empty!(list)
+        list = []
     end
 
     for name in list
