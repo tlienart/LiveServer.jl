@@ -262,7 +262,7 @@ function serve_file(
     # --> other: just get the browser to show it
     #
 
-    ext = last(splitext(fs_path))[2:end]
+    ext = lstrip(last(splitext(fs_path)), '.')
     content = read(fs_path, String)
 
     # build the response with appropriate mime type (this is inspired from Mux
