@@ -88,14 +88,15 @@ function get_fs_path(req_path::AbstractString)::String
         fs_path = joinpath(CONTENT_DIR[], fs_path)
     end
 
-    # if it ends with `/` try to see if there's an index.html
-    if endswith(uri.path, '/')
-        tmp = joinpath(fs_path, "index.html")
-        isfile(tmp) && return tmp
-    end
-    # otherwise return the path if it exists (file or dir)
-    (isfile(fs_path) || isdir(fs_path)) && return fs_path
-    # otherwise --> this will lead to a 404
+    isfile(fs_path) && return fs_path
+
+    tmp = joinpath(fs_path, "index.html")
+    isfile(tmp)     && return tmp
+
+    # content of the dir will be shown
+    isdir(fs_path)  && return fs_path
+
+    # 404 will be shown
     return ""
 end
 
@@ -266,7 +267,7 @@ function serve_file(
 
     # build the response with appropriate mime type (this is inspired from Mux
     # https://github.com/JuliaWeb/Mux.jl/blob/master/src/examples/files.jl)
-    mime = get(MIME_TYPES, ext, "text/plain")
+    mime = get(MIME_TYPES, ext, HTTP.sniff(content))
 
     # if html-like, try adding the browser-sync script to it
     inject_reload = inject_browser_reload_script &&
