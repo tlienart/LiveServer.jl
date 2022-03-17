@@ -54,10 +54,15 @@ This is similar to the [`http.server`](https://docs.python.org/3/library/http.se
 
 `servedocs` is a convenience function that runs `Documenter` along with `LiveServer` to watch your doc files for any changes and render them in your browser when modifications are detected.  
 
-Assuming you are in `directory/to/YourPackage.jl` and that you have a `docs/` folder as prescribed by [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl), just run:
+Assuming you are in `directory/to/YourPackage.jl`, that you have a `docs/` folder as prescribed by [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl) and `LiveServer` installed in your global environment, you can run:
 
 ```julia
+$ julia
+
+pkg> activate docs
+
 julia> using YourPackage, LiveServer
+
 julia> servedocs()
 [ Info: SetupBuildDirectory: setting up build directory.
 [ Info: ExpandTemplates: expanding markdown templates.
@@ -68,5 +73,11 @@ julia> servedocs()
 ```
 
 Open a browser and go to `http://localhost:8000/` to see your docs being rendered; try modifying files (e.g. `docs/index.md`) and watch the changes being rendered in the browser.
+
+To run the server with one line of code, run:
+
+```
+$ julia --project=docs -ie 'using YourPackage, LiveServer; servedocs()'
+```
 
 **Note**: this works with [Literate.jl](https://github.com/fredrikekre/Literate.jl) as well. See [the docs](https://tlienart.github.io/LiveServer.jl/dev/man/ls+lit/).
