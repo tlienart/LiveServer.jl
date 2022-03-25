@@ -1,4 +1,5 @@
 using Base.Filesystem
+import MIMEs
 
 """
     open_in_default_browser(url)
@@ -267,11 +268,21 @@ function serve_file(
 
     # build the response with appropriate mime type (this is inspired from Mux
     # https://github.com/JuliaWeb/Mux.jl/blob/master/src/examples/files.jl)
-    mime = get(MIME_TYPES, ext, HTTP.sniff(content))
+    content_type = let
+        mime_from_ext = MIMEs.mime_from_extension(ext, nothing)
+        if mime_from_ext !== nothing
+            MIMEs.contenttype_from_mime(mime_from_ext)
+        else
+            HTTP.sniff(content)
+        end
+    end
 
     # if html-like, try adding the browser-sync script to it
-    inject_reload = inject_browser_reload_script &&
-                      mime in ("text/html", "application/xhtml+xml")
+    inject_reload = inject_browser_reload_script && (
+            startswith(content_type, "text/html") || 
+            startswith(content_type, "application/xhtml+xml")
+        )
+
     if inject_reload
         end_body_match = match(r"</body>", content)
         if end_body_match === nothing
@@ -289,7 +300,7 @@ function serve_file(
         end
     end
 
-    headers = ["Content-Type" => mime]
+    headers = ["Content-Type" => content_type]
     if allow_cors
         push!(headers, "Access-Control-Allow-Origin" => "*")
     end
