@@ -42,7 +42,6 @@ end
 # Functions
 #
 
-include("mimetypes.jl")
 include("file_watching.jl")
 include("server.jl")
 
