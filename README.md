@@ -23,6 +23,16 @@ For Julia `[1.0, 1.3)`, you can use LiveServer's version 0.7.4:
 pkg> add LiveServer@0.7.4
 ```
 
+### Make it a shell command
+
+LiveServer is a small package and fast to load with one main functionality (`serve`), it can be convenient to make it a shell command: (I'm using the name `lss` here but you could use something else):
+
+```
+alias lss='julia -e "import LiveServer as LS; LS.serve(launch_browser=true)"'
+```
+
+you can then use `lss` in any directory to show a directory listing in your browser, and if the directory has an `index.html` then that will be rendered in your browser.
+
 ## Usage
 
 The main function `LiveServer` exports is `serve` which starts listening to the current folder and makes its content available to a browser.
