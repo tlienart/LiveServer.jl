@@ -1,0 +1,12 @@
+# Das ist ein TOML-Dokument.
+title = "TOML Beispiel"
+
+[person]
+name = "Tom Preston-Werner"
+geburtstag = 1979-05-27T07:32:00-08:00
+
+[datenbank]
+adresse = "192.168.1.1"
+ports = [ 8001, 8001, 8002 ]
+verbindungen_max = 5000
+aktiviert = true # booleans

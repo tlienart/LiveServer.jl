@@ -257,13 +257,11 @@ function serve_file(
         return HTTP.Response(200, index_page)
     end
 
-    #
     # In what follows, fs_path points to a file
     # --> html-like: try to inject reload-script
     # --> other: just get the browser to show it
     #
-
-    ext = lstrip(last(splitext(fs_path)), '.')
+    ext     = lstrip(last(splitext(fs_path)), '.') |> string
     content = read(fs_path, String)
 
     # build the response with appropriate mime type (this is inspired from Mux
@@ -277,9 +275,25 @@ function serve_file(
         end
     end
 
+    # avoid overly-specific text types so the browser can try rendering
+    # all text-like documents instead of offering to download all files
+    m = match(r"^text\/(.*?);(.*)$", content_type)
+    if m !== nothing
+        text_type = m.captures[1]
+        if text_type ∉ ("html", "javascript", "css")
+            content_type = "text/plain;$(m.captures[2])"
+        end
+    end
+    plain = "text/plain; charset=utf8"
+    content_type = replace(
+        content_type,
+        "application/toml" => plain,
+        "application/x-sh" => plain
+    )
+
     # if html-like, try adding the browser-sync script to it
     inject_reload = inject_browser_reload_script && (
-            startswith(content_type, "text/html") || 
+            startswith(content_type, "text/html") ||
             startswith(content_type, "application/xhtml+xml")
         )
 
@@ -301,6 +315,7 @@ function serve_file(
     end
 
     headers = ["Content-Type" => content_type]
+
     if allow_cors
         push!(headers, "Access-Control-Allow-Origin" => "*")
     end

@@ -25,5 +25,5 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/asprionj/LiveServer.jl.git"
+    repo = "github.com/tlienart/LiveServer.jl.git"
 )
