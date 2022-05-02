@@ -285,11 +285,9 @@ function serve_file(
         end
     end
     plain = "text/plain; charset=utf8"
-    content_type = replace(
-        content_type,
-        "application/toml" => plain,
-        "application/x-sh" => plain
-    )
+    for p  in ("application/toml", "application/x-sh")
+        content_type = replace(content_type, p => plain)
+    end
 
     # if html-like, try adding the browser-sync script to it
     inject_reload = inject_browser_reload_script && (
