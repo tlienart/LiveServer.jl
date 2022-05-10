@@ -144,17 +144,17 @@ function get_dir_list(dir::AbstractString)
             </style>
           </head>
           <body>
-            <h1 style='margin-top: 3em;'>
+            <h1 style='margin-top: 1em;'>
               Directory listing
             </h1>
             <h2>
               <code style='color:gray;'>$(sdir)</code>
-              <hr> <br>
-              <a href="/$(lstrip_cdir(dir))/..">..</a>
               <br>
-              
+              <a href="/">🏠 root</a>
+              <br>
+              <a href="/$(dirname(dir))">.. </a>
             </h2>
-            <br> <hr>
+            <hr>
             <ul>
         """
     )
@@ -183,9 +183,7 @@ function get_dir_list(dir::AbstractString)
     end
     write(io, """
             </ul>
-            <hr> <br>
-            <a href="/">🏠 root</a>
-            <br>
+            <hr> 
             <a href="https://github.com/tlienart/LiveServer.jl">💻 LiveServer.jl</a>
           </body>
         </html>
