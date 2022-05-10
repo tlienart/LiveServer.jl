@@ -149,7 +149,10 @@ function get_dir_list(dir::AbstractString)
             </h1>
             <h2>
               <code style='color:gray;'>$(sdir)</code>
-              <a href="/$(sdir)/..">..📂 root</a>
+              <hr> <br>
+              <a href="/$(lstrip_cdir(dir))/..">..</a>
+              <br>
+              
             </h2>
             <br> <hr>
             <ul>
