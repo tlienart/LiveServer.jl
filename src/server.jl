@@ -130,7 +130,7 @@ function get_dir_list(dir::AbstractString)
     io     = IOBuffer()
     predir = ifelse(isempty(CONTENT_DIR[]), "", "[$(append_slash(CONTENT_DIR[]))]")
     sdir   = predir * lstrip_cdir(dir)
-    println("$(predir), $(dir), $(sdir)")
+    
     write(io, """
         <!DOCTYPE HTML>
         <html>
