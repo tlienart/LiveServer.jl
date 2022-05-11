@@ -130,7 +130,7 @@ function get_dir_list(dir::AbstractString)
     io     = IOBuffer()
     predir = ifelse(isempty(CONTENT_DIR[]), "", "[$(append_slash(CONTENT_DIR[]))]")
     sdir   = predir * lstrip_cdir(dir)
-    
+
     write(io, """
         <!DOCTYPE HTML>
         <html>
@@ -147,13 +147,10 @@ function get_dir_list(dir::AbstractString)
             <h1 style='margin-top: 1em;'>
               Directory listing
             </h1>
-            <h2>
-              <code style='color:gray;'>$(sdir)</code>
-              <br>
-              <a href="/">🏠 root</a>
-              <br>
-              <a href="/$(dirname(dir))">.. </a>
+            <h3>
+              <a href="/" alt="root">🏠</a> <a href="/$(dirname(dir))" alt="parent dir">⬆️</a> &nbsp; path: <code style='color:gray;'>$(sdir)</code>
             </h2>
+
             <hr>
             <ul>
         """
@@ -183,7 +180,7 @@ function get_dir_list(dir::AbstractString)
     end
     write(io, """
             </ul>
-            <hr> 
+            <hr>
             <a href="https://github.com/tlienart/LiveServer.jl">💻 LiveServer.jl</a>
           </body>
         </html>
