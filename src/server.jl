@@ -38,9 +38,12 @@ closing anyway and clients will re-connect from the re-loaded page.
 function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
     foreach(wss) do wsi
         try
-            write(wsi, "update")
+            send(wsi, "update")
             close(wsi)
-        catch
+        catch e
+            if VERBOSE[]
+                @error "update_and_close_viewers! error" exception=(e, catch_backtrace())
+            end
         end
     end
     empty!(wss)
@@ -327,32 +330,13 @@ function serve_file(
 end
 
 """
-    ws_upgrade(http::HTTP.Stream)
-
-Upgrade the HTTP request in the stream to a websocket.
-"""
-function ws_upgrade(http::HTTP.Stream)
-    # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always
-    # have  the right format as it always triggered by after a Response
-    HTTP.setstatus(http, 101)
-    HTTP.setheader(http, "Upgrade" => "websocket")
-    HTTP.setheader(http, "Connection" => "Upgrade")
-    key = HTTP.header(http, "Sec-WebSocket-Key")
-    HTTP.setheader(http, "Sec-WebSocket-Accept" => HTTP.WebSockets.accept_hash(key))
-    HTTP.startwrite(http)
-
-    io = http.stream
-    return HTTP.WebSockets.WebSocket(io; server=true)
-end
-
-
-"""
-    ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
+    ws_tracker(ws::HTTP.WebSockets.WebSocket)
 
 Adds the websocket connection to the viewers in the global dictionary `WS_VIEWERS` to the entry
 corresponding to the targeted file.
 """
-function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
+function ws_tracker(ws::HTTP.WebSockets.WebSocket)
+    target = ws.request.target
     # add to list of html files being "watched"
     # NOTE: this file always exists because the query is generated just after
     # serving it
@@ -360,7 +344,7 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
 
     # if the file is already being viewed, add ws to it (e.g. several tabs)
     # otherwise add to dict
-    if fs_path ∈ keys(WS_VIEWERS)
+    if haskey(WS_VIEWERS, fs_path)
         push!(WS_VIEWERS[fs_path], ws)
     else
         WS_VIEWERS[fs_path] = [ws]
@@ -371,8 +355,9 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
         # forces the websocket to stay open until it's closed by LiveServer (and
         # not by the browser) upon writing a `update` message on the websocket.
         # See update_and_close_viewers
-        while isopen(ws.io)
-            sleep(0.1)
+        while !ws.writeclosed
+            WebSockets.pong(ws)
+            sleep(1.0)
         end
     catch err
         # NOTE: there may be several sources of errors caused by the precise moment
@@ -384,7 +369,12 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
         # - We therefore do not propagate the error but merely store the information
         # that there was a forcible interruption of the websocket so that the
         # interruption can be guaranteed to be propagated.
-        WS_INTERRUPT[] = true
+        if !WebSockets.isok(err)
+            if VERBOSE[]
+                @error "ws_tracker error" exception=(err, catch_backtrace())
+            end
+            WS_INTERRUPT[] = true
+        end
     end
     return nothing
 end
@@ -436,25 +426,20 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     start(fw)
 
     # make request handler
-    req_handler = HTTP.RequestHandlerFunction() do req
+    req_handler = HTTP.Handlers.streamhandler() do req
         req = preprocess_request(req)
         serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script, allow_cors = allow_cors)
     end
 
-    server = Sockets.listen(parse(IPAddr, host), port)
     url = "http://$(host == string(Sockets.localhost) ? "localhost" : host):$port"
     println("✓ LiveServer listening on $url/ ...\n  (use CTRL+C to shut down)")
-    @async HTTP.listen(host, port;
-                       server=server, readtimeout=0, reuse_limit=0) do http::HTTP.Stream
-        # reuse_limit=0 ensures that there won't be an error if killing and restarting the server.
-        if HTTP.WebSockets.is_upgrade(http.message)
-            # upgrade to websocket
-            ws = ws_upgrade(http)
-            # add to list of viewers and keep open until written to
-            ws_tracker(ws, http.message.target)
+    server = HTTP.listen!(host, port; readtimeout=0) do http::HTTP.Stream
+        if HTTP.WebSockets.isupgrade(http.message)
+            # upgrade to websocket and add to list of viewers and keep open until written to
+            HTTP.WebSockets.upgrade(ws_tracker, http)
         else
             # handle HTTP request
-            HTTP.handle(req_handler, http)
+            return req_handler(http)
         end
     end
 
@@ -476,6 +461,9 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
         end
     catch err
         if !isa(err, InterruptException)
+            if VERBOSE[]
+                @error "serve error" exception=(err, catch_backtrace())
+            end
             throw(err)
         end
     finally
@@ -485,7 +473,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
         stop(fw)
         # close any remaining websockets
         for wss ∈ values(WS_VIEWERS), wsi ∈ wss
-            close(wsi.io)
+            close(wsi)
         end
         # empty the dictionary of viewers
         empty!(WS_VIEWERS)
