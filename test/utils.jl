@@ -23,7 +23,7 @@
     include(abspath(makejl))
     @test readmake() == 1
 
-    def = (nothing, String[], "docs", "build")
+    def = (nothing, String[], String[], "docs", "build")
 
     # callback function
     dw = LS.SimpleWatcher()
@@ -107,7 +107,7 @@ end
     # callback function
     dw = LS.SimpleWatcher()
 
-    LS.servedocs_callback!(dw, makejl, makejl, "", String[], "site", "build")
+    LS.servedocs_callback!(dw, makejl, makejl, "", String[], String[], "site", "build")
 
     @test length(dw.watchedfiles) == 3
     @test dw.watchedfiles[1].path == joinpath("site", "make.jl")
@@ -118,14 +118,14 @@ end
 
     # let's now remove `index2.md`
     rm(joinpath("site", "src", "index2.md"))
-    LS.servedocs_callback!(dw, makejl, makejl, "", String[], "site", "build")
+    LS.servedocs_callback!(dw, makejl, makejl, "", String[], String[], "site", "build")
 
     # the file has been removed
     @test length(dw.watchedfiles) == 2
     @test readmake() == 3
 
     # let's check there's an appropriate trigger for index
-    LS.servedocs_callback!(dw, joinpath("site", "src", "index.md"), makejl, "", String[], "site", "build")
+    LS.servedocs_callback!(dw, joinpath("site", "src", "index.md"), makejl, "", String[], String[], "site", "build")
     @test length(dw.watchedfiles) == 2
     @test readmake() == 4
 
