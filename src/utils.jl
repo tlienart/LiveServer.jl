@@ -22,14 +22,18 @@ function servedocs_callback!(
             path2makejl::AbstractString,
             literate::Union{Nothing,String},
             skip_dirs::Vector{String},
+            skip_files::Vector{String},
             foldername::String,
             buildfoldername::String)
     # ignore things happening in the build folder (generated files etc)
     startswith(fp, joinpath(foldername, buildfoldername)) && return nothing
-    # ignore things happening in any skip_dirs
+    # ignore files skip_dirs and skip_files
     for dir in skip_dirs
-        startswith(fp, dir) && return nothing
-    end
+         startswith(fp, dir) && return nothing
+     end
+     for file in skip_files
+         fp == file && return nothing
+     end
 
     # if the file that was changed is the `make.jl` file, assume that maybe
     # new files have been generated and so refresh the vector of watched files
@@ -167,6 +171,7 @@ subfolder `docs`.
                  `skip_dir=joinpath("docs","src","examples")`.
 * `skip_dirs=[]`: same as `skip_dir` but for a list of such dirs. Takes
                   precedence over `skip_dir`.
+* `skip_files=[]`: a vector of files that should not trigger regeneration.
 * `foldername="docs"`: specify a different path for the content.
 * `buildfoldername="build"`: specify a different path for the build.
 * `makejl="make.jl"`: path of the script generating the documentation relative
@@ -182,6 +187,7 @@ function servedocs(;
             doc_env::Bool=false,
             skip_dir::String="",
             skip_dirs::Vector{String}=String[],
+            skip_files::Vector{String}=String[],
             foldername::String="docs",
             buildfoldername::String="build",
             makejl::String="make.jl",
@@ -193,6 +199,8 @@ function servedocs(;
     if isempty(skip_dirs) && !isempty(skip_dir)
         skip_dirs = [skip_dir]
     end
+    skip_dirs = abspath.(skip_dirs)
+    skip_files = abspath.(skip_files)
 
     path2makejl = joinpath(foldername, makejl)
 
@@ -203,7 +211,7 @@ function servedocs(;
         docwatcher,
         fp -> servedocs_callback!(
                 docwatcher, fp, path2makejl,
-                literate, skip_dirs, foldername, buildfoldername
+                literate, skip_dirs, skip_files, foldername, buildfoldername
         )
     )
 

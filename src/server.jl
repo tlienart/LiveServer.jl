@@ -80,8 +80,7 @@ Return the filesystem path corresponding to a requested path, or an empty
 String if the file was not found.
 """
 function get_fs_path(req_path::AbstractString)::String
-    uri = HTTP.URI(req_path)
-    # first element after the split is **always** "/" --> 2:end
+    uri     = HTTP.URI(req_path)
     r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), '/'))
     fs_path = joinpath(r_parts...)
 
@@ -95,7 +94,8 @@ function get_fs_path(req_path::AbstractString)::String
     isfile(tmp)     && return tmp
 
     # content of the dir will be shown
-    isdir(fs_path)  && return fs_path
+     # we ensure there's a slash at the end (see issue #135)
+     isdir(fs_path)  && return joinpath(fs_path, "")
 
     # 404 will be shown
     return ""
@@ -109,7 +109,7 @@ Append `/` to the path part of `url`; i.e., transform `a/b` to `a/b/` and `/a/b?
 """
 function append_slash(url_str::AbstractString)
     uri = HTTP.URI(url_str)
-    return string(endswith(uri.path, "/") ? uri : merge(uri; path = uri.path * "/"))
+    return string(endswith(uri.path, "/") ? uri : HTTP.merge(uri; path = uri.path * "/"))
 end
 
 """
@@ -140,7 +140,7 @@ function get_dir_list(dir::AbstractString)
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss">
             <title>Directory listing</title>
             <style>
-            a {text-decoration: none;}
+              a {text-decoration: none;}
             </style>
           </head>
           <body>
@@ -148,8 +148,10 @@ function get_dir_list(dir::AbstractString)
               Directory listing
             </h1>
             <h3>
-              <a href="/" alt="root">🏠</a> <a href="/$(dirname(dir))" alt="parent dir">⬆️</a> &nbsp; path: <code style='color:gray;'>$(sdir)</code>
-            </h2>
+               <a href="/" alt="root">🏠</a>
+               <a href="/$(dirname(dir))" alt="parent dir">⬆️</a>
+               &nbsp; path: <code style='color:gray;'>$(sdir)</code>
+             </h3>
 
             <hr>
             <ul>
@@ -160,19 +162,21 @@ function get_dir_list(dir::AbstractString)
     list_dirs  = [d for d in list if d ∉ list_files]
 
     for fname in list_files
-        link = lstrip_cdir(fname)
-        name = splitdir(fname)[end]
-        post = ifelse(islink(fname), " @", "")
+        link  = lstrip_cdir(fname)
+        name  = splitdir(fname)[end]
+        post  = ifelse(islink(fname), " @", "")
         write(io, """
             <li><a href="/$(link)">$(name)$(post)</a></li>
             """
         )
     end
     for fdir in list_dirs
-        link = lstrip_cdir(fdir)
-        name = splitdir(fdir)[end]
-        pre  = "📂 "
-        post = ifelse(islink(fdir), " @", "")
+        link  = lstrip_cdir(fdir)
+        # ensure ends with slash, see #135
+        link *= ifelse(endswith(link, "/"), "", "/")
+        name  = splitdir(fdir)[end]
+        pre   = "📂 "
+        post  = ifelse(islink(fdir), " @", "")
         write(io, """
             <li><a href="/$(link)">$(pre)$(name)$(post)</a></li>
             """
@@ -197,14 +201,15 @@ to be watched can be added, and a request (e.g. a path entered in a tab of the
 browser), and converts it to the appropriate file system path.
 
 The cases are as follows:
-1. the path corresponds exactly to a file. If it's a html-like file,
-    LiveServer will try injecting the reloading `<script>` (see file
-    `client.html`) at the end, just before the `</body>` tag.
-2. the path corresponds to a directory in which there is an `index.html`,
-    same action as (1) assuming the `index.html` is implicit.
-3. the path corresponds to a directory in which there is not an `index.html`,
-    list the directory contents.
-4. not (1,2,3), a 404 is served.
+ 1. FILE: the path corresponds exactly to a file. If it's a html-like file,
+     LiveServer will try injecting the reloading `<script>` (see file
+     `client.html`) at the end, just before the `</body>` tag. Otherwise
+     we let the browser attempt to show it (e.g. if it's an image).
+ 2. WEB-DIRECTORY: the path corresponds to a directory in which there is an
+     `index.html`, same action as (1) assuming the `index.html` is implicit.
+ 3. PLAIN-DIRECTORY: the path corresponds to a directory in which there is not
+     an `index.html`, list the directory contents.
+ 4. 404: not (1,2,3), a 404 is served.
 
 All files served are added to the file watcher, which is responsible to check
 whether they're already watched or not. Finally the file is served via a 200
@@ -221,9 +226,8 @@ function serve_file(
     fs_path  = get_fs_path(req.target)
 
     # if get_fs_path returns an empty string, there's two cases:
-    # 1. the path is a directory without an `index.html` --> list dir
-    # 2. otherwise serve a 404 (see if there's a dedicated 404 path,
-    #     otherwise just use a basic one).
+    # 1. [CASE 3] the path is a directory without an `index.html` --> list dir
+    # 2. [CASE 4] otherwise serve a 404 (see if there's a dedicated 404 path,
     if isempty(fs_path)
 
         if req.target == "/"
@@ -251,14 +255,15 @@ function serve_file(
         end
     end
 
+    # [CASE 2]
     if isdir(fs_path)
         index_page = get_dir_list(fs_path)
         return HTTP.Response(200, index_page)
     end
 
     # In what follows, fs_path points to a file
-    # --> html-like: try to inject reload-script
-    # --> other: just get the browser to show it
+    # --> [CASE 1a] html-like: try to inject reload-script
+    # --> [CASE 1b] other: just get the browser to show it
     #
     ext     = lstrip(last(splitext(fs_path)), '.') |> string
     content = read(fs_path, String)
@@ -391,59 +396,87 @@ end
 
 
 """
-    serve(filewatcher; host="127.0.0.1", port=8000, dir="", verbose=false, coreloopfun=(c,fw)->nothing, inject_browser_reload_script::Bool = true, launch_browser::Bool = false, allow_cors::Bool = false)
+    serve(filewatcher; ...)
 
 Main function to start a server at `http://host:port` and render what is in the current
 directory. (See also [`example`](@ref) for an example folder).
 
 # Arguments
 
-- `filewatcher` is a file watcher implementing the API described for [`SimpleWatcher`](@ref) (which also is the default) and messaging the viewers (via WebSockets) upon detecting file changes.
-- `port` is an integer between 8000 (default) and 9000.
-- `dir` specifies where to launch the server if not the current working directory.
-- `verbose` is a boolean switch to make the server print information about file changes and connections.
-- `coreloopfun` specifies a function which can be run every 0.1 second while the liveserver is going; it takes two arguments: the cycle counter and the filewatcher. By default the coreloop does nothing.
-- `launch_browser=false` specifies whether to launch the ambient browser at the localhost URL or not.
-- `allow_cors::Bool=false` will allow cross origin (CORS) requests to access the server via the "Access-Control-Allow-Origin" header.
-- `preprocess_request=identity`: specifies a function which can transform a request before a response is returned; its only argument is the current request.
+    `filewatcher`: a file watcher implementing the API described for
+                    [`SimpleWatcher`](@ref) (which also is the default) and
+                    messaging the viewers (via WebSockets) upon detecting file
+                    changes.
+    `port`: integer between 8000 (default) and 9000.
+    `dir`: string specifying where to launch the server if not the current
+        working directory.
+    `verbose`: boolean switch to make the server print information about file
+                changes and connections.
+    `coreloopfun`: function which can be run every 0.1 second while the
+                    liveserver is running; it takes two arguments: the cycle
+                    counter and the filewatcher. By default the coreloop does
+                    nothing.
+    `launch_browser`: boolean specifying whether to launch the ambient browser
+                       at the localhost or not (default: false).
+    `allow_cors`: boolean allowing cross origin (CORS) requests to access the
+                   server via the "Access-Control-Allow-Origin" header.
+    `preprocess_request`: function specifying the transformation of a request
+                           before it is returned; its only argument is the
+                           current request.
+ # Example
 
-# Example
+ ```julia
+ LiveServer.example()
+ serve(host="127.0.0.1", port=8080, dir="example", launch_browser=true)
+ ```
 
-```julia
-LiveServer.example()
-serve(host="127.0.0.1", port=8080, dir="example", verbose=true, launch_browser=true)
-```
+ You should then see the `index.html` page from the `example` folder being
+ rendered. If you change the file, the browser will automatically reload the
+ page and show the changes.
+ """
+ function serve(
+             fw::FileWatcher=SimpleWatcher(file_changed_callback);
+             # kwargs
+             host::String = "127.0.0.1",
+             port::Int = 8000,
+             dir::AbstractString = "",
+             verbose::Bool = false,
+             coreloopfun::Function = (c, fw)->nothing,
+             preprocess_request::Function = identity,
+             inject_browser_reload_script::Bool = true,
+             launch_browser::Bool = false,
+             allow_cors::Bool = false
+         )::Nothing
 
-You should then see the `index.html` page from the `example` folder being rendered. If you change the file, the browser will automatically reload the
-page and show the changes.
-"""
-function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
-               host::String="127.0.0.1", port::Int=8000, dir::AbstractString="", verbose::Bool=false,
-               coreloopfun::Function=(c, fw)->nothing,
-               preprocess_request=identity,
-               inject_browser_reload_script::Bool = true,
-               launch_browser::Bool = false,
-               allow_cors::Bool = false)
+     8000 ≤ port ≤ 9000 || throw(
+         ArgumentError("The port must be between 8000 and 9000.")
+     )
+     setverbose(verbose)
 
-    8000 ≤ port ≤ 9000 || throw(ArgumentError("The port must be between 8000 and 9000."))
-    setverbose(verbose)
-
-    if !isempty(dir)
-        isdir(dir) || throw(ArgumentError("The specified dir '$dir' is not recognised."))
-        CONTENT_DIR[] = dir
-    end
+     if !isempty(dir)
+         isdir(dir) || throw(
+             ArgumentError("The specified dir '$dir' is not recognised.")
+         )
+         CONTENT_DIR[] = dir
+     end
 
     start(fw)
 
     # make request handler
     req_handler = HTTP.RequestHandlerFunction() do req
         req = preprocess_request(req)
-        serve_file(fw, req; inject_browser_reload_script = inject_browser_reload_script, allow_cors = allow_cors)
+        serve_file(
+            fw, req;
+            inject_browser_reload_script = inject_browser_reload_script,
+            allow_cors = allow_cors
+        )
     end
 
     server = Sockets.listen(parse(IPAddr, host), port)
     url = "http://$(host == string(Sockets.localhost) ? "localhost" : host):$port"
-    println("✓ LiveServer listening on $url/ ...\n  (use CTRL+C to shut down)")
+    println(
+        "✓ LiveServer listening on $url/ ...\n  (use CTRL+C to shut down)"
+    )
     @async HTTP.listen(host, port;
                        server=server, readtimeout=0, reuse_limit=0) do http::HTTP.Stream
         # reuse_limit=0 ensures that there won't be an error if killing and restarting the server.
