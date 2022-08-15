@@ -109,7 +109,7 @@ Append `/` to the path part of `url`; i.e., transform `a/b` to `a/b/` and `/a/b?
 """
 function append_slash(url_str::AbstractString)
     uri = HTTP.URI(url_str)
-    return string(endswith(uri.path, "/") ? uri : HTTP.merge(uri; path = uri.path * "/"))
+    return string(endswith(uri.path, "/") ? uri : HTTP.URI(uri; path = uri.path * "/"))
 end
 
 """
