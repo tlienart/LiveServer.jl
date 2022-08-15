@@ -349,14 +349,20 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket)
     else
         WS_VIEWERS[fs_path] = [ws]
     end
-
+    # start an async task to receive messages from ws and ignore them
+    # this allows reading pongs and close frames from the browser
+    errormonitor(@async begin
+        for msg in ws
+            # pass
+        end
+    end)
     try
         # NOTE: browsers will drop idle websocket connections so this effectively
         # forces the websocket to stay open until it's closed by LiveServer (and
         # not by the browser) upon writing a `update` message on the websocket.
         # See update_and_close_viewers
-        while !ws.writeclosed
-            WebSockets.pong(ws)
+        while !ws.writeclosed && isopen(ws.io)
+            WebSockets.ping(ws)
             sleep(1.0)
         end
     catch err
@@ -448,7 +454,7 @@ function serve(fw::FileWatcher=SimpleWatcher(file_changed_callback);
     try
         counter = 1
         while true
-            if WS_INTERRUPT.x || fw.status == :interrupted
+            if WS_INTERRUPT[] || fw.status == :interrupted
                 # rethrow the interruption (which may have happened during
                 # the websocket handling or during the file watching)
                 throw(InterruptException())
