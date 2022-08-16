@@ -357,11 +357,11 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket)
 
     # start an async task to receive messages from ws and ignore them
     # this allows reading pongs and close frames from the browser
-    errormonitor(@async begin
+    @async begin
         for msg in ws
             # pass
         end
-    end)
+    end
 
     try
         # NOTE: browsers will drop idle websocket connections so this effectively
