@@ -220,7 +220,6 @@ end
     @test LS.WS_INTERRUPT[]
 
     @test length(LS.WS_VIEWERS[fs_path]) == 2
-    @test LS.WS_VIEWERS[fs_path][2] == ws
 
     # cleanup
     close(server)
