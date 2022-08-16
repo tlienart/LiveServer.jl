@@ -101,27 +101,31 @@ tasks that you will try to start.
     # if we modify the file, it should trigger the callback function which should open
     # and then subsequently close a websocket. We check this happens properly by adding
     # our own sentinel websocket
-    sentinel = HTTP.WebSockets.WebSocket(IOBuffer())
+    function makews()
+        req = HTTP.Request()
+        return HTTP.WebSockets.WebSocket(HTTP.Connection(IOBuffer()), req, req.response; client=false)
+    end
+    sentinel = makews()
     LS.WS_VIEWERS["tmp.html"] = [sentinel]
 
-    @test sentinel.io.writable
+    @test sentinel.io.io.writable
     write("tmp.html", "something new")
     sleep(0.1)
     # the sentinel websocket should be closed
-    @test !sentinel.io.writable
+    @test !sentinel.io.io.writable
     # the websockets should have been flushed
     @test isempty(LS.WS_VIEWERS["tmp.html"])
 
     # let's do this again with an infra file which will ping all websockets
-    sentinel1 = HTTP.WebSockets.WebSocket(IOBuffer())
-    sentinel2 = HTTP.WebSockets.WebSocket(IOBuffer())
+    sentinel1 = makews()
+    sentinel2 = makews()
     push!(LS.WS_VIEWERS["tmp.html"], sentinel1)
     LS.WS_VIEWERS["css/foo.css"] = [sentinel2]
     write("css/foo.css", "body { color:blue; }")
     sleep(0.1)
     # all sentinel websockets should be closed
-    @test !sentinel1.io.writable
-    @test !sentinel2.io.writable
+    @test !sentinel1.io.io.writable
+    @test !sentinel2.io.io.writable
 
     # if we remove the files, it shall stop following it
     rm("tmp.html")
@@ -137,7 +141,7 @@ tasks that you will try to start.
     # this should have interrupted the server, so it should be possible
     # to restart one on the same port (otherwise this will throw an error, already in use)
     schedule(task, InterruptException(), error=true)
-    sleep(0.25) # give it time to get done
+    sleep(1.5) # give it time to get done
     @test istaskdone(task)
     @test begin
         server = Sockets.listen(port)
@@ -152,61 +156,66 @@ tasks that you will try to start.
     cd(bk)
 end
 
-@testset "Server/ws_upgrade testing   " begin
-    io = IOBuffer()
-    s = HTTP.Stream(HTTP.Request("GET", "http://httpbin.org/ip"), io)
-
-    # ws_upgrade
-    ws = LS.ws_upgrade(s)
-
-    @test ws.server
-
-    @test occursin("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept:", String(take!(ws.io)))
-
-    test_string = "blah bLah"
-    write(io, test_string)
-    @test String(take!(ws.io)) == test_string
-    @test isempty(ws.io.data)
-end
-
 @testset "Server/ws_tracker testing   " begin
     bk = pwd()
     cd(mktempdir())
     write("test_file.html", "Hello!")
 
-    io = IOBuffer()
-    s = HTTP.Stream(HTTP.Request("GET", "http://localhost:8562/test_file.html"), io)
+    server = Sockets.listen(Sockets.localhost, 8001)
+    io = Sockets.connect(Sockets.localhost, 8001)
+    key = "k5zQsAMXfFlvmWIE/YCiEg=="
+    s = HTTP.Stream(
+        HTTP.Request(
+            "GET",
+            "http://localhost:8562/test_file.html",
+            [
+                "Connection" => "upgrade",
+                "Upgrade" => "websocket",
+                "Sec-WebSocket-Key" => key,
+                "Sec-WebSocket-Version" => "13"
+            ]
+        ),
+        HTTP.Connection(io)
+    )
 
     fs_path = LS.get_fs_path(s.message.target)
     @test fs_path == "test_file.html"
 
-    ws = LS.ws_upgrade(s)
-    write(io, "some stuff on the websocket")
-
-    tsk = @async LS.ws_tracker(ws, s.message.target)
-    sleep(0.1)
-
-    # simulate a "good" closure (an event caused a write on the websocket and then closes it)
-    close(ws.io)
-    sleep(0.2)
-    @test istaskdone(tsk)
-    @test !LS.WS_INTERRUPT[]
-
+    tsk = @async LS.HTTP.WebSockets.upgrade(LS.ws_tracker, s)
+    sleep(1.0)
     # the websocket should have been added to the list
     @test LS.WS_VIEWERS[fs_path] isa Vector{HTTP.WebSockets.WebSocket}
     @test length(LS.WS_VIEWERS[fs_path]) == 1
-    @test LS.WS_VIEWERS[fs_path][1] == ws
 
-    io = IOBuffer()
-    s = HTTP.Stream(HTTP.Request("GET", "http://localhost:8562/test_file.html"), io)
-    ws = LS.ws_upgrade(s)
-    write(io, "la di da, dimension C-137")
-    tsk = @async LS.ws_tracker(ws, s.message.target)
-    sleep(0.2)
+    # simulate a "good" closure (an event caused a write on the websocket and then closes it)
+    ws = LS.WS_VIEWERS[fs_path][1]
+    close(ws)
+    sleep(1.0)
+    @test istaskdone(tsk)
+    @test !LS.WS_INTERRUPT[]
+
+    io = Sockets.connect(Sockets.localhost, 8001)
+    key = "k5zQsAMXfFlvmWIE/YCiEg=="
+    s = HTTP.Stream(
+            HTTP.Request(
+                "GET",
+                "http://localhost:8562/test_file.html",
+                [
+                    "Connection" => "upgrade",
+                    "Upgrade" => "websocket",
+                    "Sec-WebSocket-Key" => key,
+                    "Sec-WebSocket-Version" => "13"
+                ]
+            ),
+        HTTP.Connection(io)
+    )
+
+    tsk = @async LS.HTTP.WebSockets.upgrade(LS.ws_tracker, s)
+    sleep(1.0)
 
     # simulate a "bad" closure
     schedule(tsk, InterruptException(), error=true)
-    sleep(0.1)
+    sleep(5.1)
     @test istaskdone(tsk)
     @test LS.WS_INTERRUPT[]
 
@@ -214,6 +223,7 @@ end
     @test LS.WS_VIEWERS[fs_path][2] == ws
 
     # cleanup
+    close(server)
     empty!(LS.WS_VIEWERS)
 
     cd(bk)
