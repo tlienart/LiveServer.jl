@@ -370,7 +370,7 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket)
         # See update_and_close_viewers
         while !ws.writeclosed && isopen(ws.io)
             WebSockets.ping(ws)
-            sleep(1.0)
+            sleep(0.1)
         end
     catch err
         # NOTE: there may be several sources of errors caused by the precise moment
