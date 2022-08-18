@@ -26,7 +26,7 @@ has not changed, and 1 if it has changed.
 function has_changed(wf::WatchedFile)
     if !isfile(wf.path)
         # isfile may return false for a file
-        # currently being written. Wait for 0.1s 
+        # currently being written. Wait for 0.1s
         # then retry once more:
         sleep(0.1)
         isfile(wf.path) || return -1
@@ -111,8 +111,8 @@ function file_watcher_task!(fw::FileWatcher)
     catch err
         fw.status = :interrupted
         # an InterruptException is the normal way for this task to end
-        if !isa(err, InterruptException)
-            error("An error happened whilst watching files; shutting down. Error was: $err")
+        if !isa(err, InterruptException) && VERBOSE[]
+            @error "fw error" exception=(err, catch_backtrace())
         end
         return nothing
     end
