@@ -519,7 +519,7 @@ directory. (See also [`example`](@ref) for an example folder).
         # empty the dictionary of viewers
         empty!(WS_VIEWERS)
         # shut down the server
-        close(server)
+        HTTP.Servers.forceclose(server)
         # reset environment variables
         CONTENT_DIR[]  = ""
         WS_INTERRUPT[] = false
