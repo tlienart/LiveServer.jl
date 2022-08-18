@@ -437,7 +437,7 @@ directory. (See also [`example`](@ref) for an example folder).
              host::String = "127.0.0.1",
              port::Int = 8000,
              dir::AbstractString = "",
-             verbose::Bool = true,
+             verbose::Bool = false,
              coreloopfun::Function = (c, fw)->nothing,
              preprocess_request::Function = identity,
              inject_browser_reload_script::Bool = true,

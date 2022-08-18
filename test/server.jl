@@ -103,14 +103,16 @@ tasks that you will try to start.
     # our own sentinel websocket
     function makews()
         req = HTTP.Request()
-        return HTTP.WebSockets.WebSocket(HTTP.Connection(IOBuffer()), req, req.response; client=false)
+        return HTTP.WebSockets.WebSocket(
+            HTTP.Connection(IOBuffer()), req, req.response; client=false
+        )
     end
     sentinel = makews()
     LS.WS_VIEWERS["tmp.html"] = [sentinel]
 
     @test sentinel.io.io.writable
     write("tmp.html", "something new")
-    sleep(0.1)
+    sleep(0.5)
     # the sentinel websocket should be closed
     @test !sentinel.io.io.writable
     # the websockets should have been flushed
@@ -122,7 +124,7 @@ tasks that you will try to start.
     push!(LS.WS_VIEWERS["tmp.html"], sentinel1)
     LS.WS_VIEWERS["css/foo.css"] = [sentinel2]
     write("css/foo.css", "body { color:blue; }")
-    sleep(0.1)
+    sleep(0.5)
     # all sentinel websockets should be closed
     @test !sentinel1.io.io.writable
     @test !sentinel2.io.io.writable
