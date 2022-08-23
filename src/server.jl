@@ -36,14 +36,31 @@ then close the connection. Finally, empty the list since all connections are
 closing anyway and clients will re-connect from the re-loaded page.
 """
 function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
-    foreach(wss) do wsi
-        try
-            write(wsi, "update")
-            close(wsi)
-        catch
+    ws_to_update_and_close = collect(wss)
+    empty!(wss)
+
+    # send update message to all viewers
+    @sync for wsi in ws_to_update_and_close
+        isopen(wsi.io) && @async begin
+            try
+                send(wsi, "update")
+            catch
+            end
         end
     end
-    empty!(wss)
+
+    # force close all viewers (these will be replaced by 'fresh' ones
+    # after the reload triggered by the update message)
+    @sync for wsi in ws_to_update_and_close
+        isopen(wsi.io) && @async begin
+            try
+                wsi.writeclosed = wsi.readclosed = true
+                close(wsi.io)
+            catch
+            end
+        end
+    end
+
     return nothing
 end
 
@@ -331,41 +348,21 @@ function serve_file(
     return resp
 end
 
-"""
-    ws_upgrade(http::HTTP.Stream)
-
-Upgrade the HTTP request in the stream to a websocket.
-"""
-function ws_upgrade(http::HTTP.Stream)
-    # adapted from HTTP.WebSockets.upgrade; note that here the upgrade will always
-    # have  the right format as it always triggered by after a Response
-    HTTP.setstatus(http, 101)
-    HTTP.setheader(http, "Upgrade" => "websocket")
-    HTTP.setheader(http, "Connection" => "Upgrade")
-    key = HTTP.header(http, "Sec-WebSocket-Key")
-    HTTP.setheader(http, "Sec-WebSocket-Accept" => HTTP.WebSockets.accept_hash(key))
-    HTTP.startwrite(http)
-
-    io = http.stream
-    return HTTP.WebSockets.WebSocket(io; server=true)
-end
-
 
 """
     ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
 
-Adds the websocket connection to the viewers in the global dictionary `WS_VIEWERS` to the entry
-corresponding to the targeted file.
+Adds the websocket connection to the viewers in the global dictionary
+`WS_VIEWERS` to the entry corresponding to the targeted file.
 """
-function ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
-    # add to list of html files being "watched"
-    # NOTE: this file always exists because the query is generated just after
-    # serving it
-    fs_path = get_fs_path(target)
+function ws_tracker(ws::HTTP.WebSockets.WebSocket)
+    # NOTE: this file always exists because the query is
+    # generated just after serving it
+    fs_path = get_fs_path(ws.request.target)
 
-    # if the file is already being viewed, add ws to it (e.g. several tabs)
-    # otherwise add to dict
-    if fs_path ∈ keys(WS_VIEWERS)
+    # add to list of html files being "watched" if the file is already being
+    # viewed, add ws to it (e.g. several tabs) otherwise add to dict
+    if haskey(WS_VIEWERS, fs_path)
         push!(WS_VIEWERS[fs_path], ws)
     else
         WS_VIEWERS[fs_path] = [ws]
@@ -463,7 +460,7 @@ directory. (See also [`example`](@ref) for an example folder).
     start(fw)
 
     # make request handler
-    req_handler = HTTP.RequestHandlerFunction() do req
+    req_handler = HTTP.Handlers.streamhandler() do req
         req = preprocess_request(req)
         serve_file(
             fw, req;
@@ -472,31 +469,19 @@ directory. (See also [`example`](@ref) for an example folder).
         )
     end
 
-    server = Sockets.listen(parse(IPAddr, host), port)
-    url = "http://$(host == string(Sockets.localhost) ? "localhost" : host):$port"
+    server, port = get_server(host, port, req_handler)
+    host_str     = ifelse(host == string(Sockets.localhost), "localhost", host)
+    url          = "http://$host_str:$port"
     println(
         "✓ LiveServer listening on $url/ ...\n  (use CTRL+C to shut down)"
     )
-    @async HTTP.listen(host, port;
-                       server=server, readtimeout=0, reuse_limit=0) do http::HTTP.Stream
-        # reuse_limit=0 ensures that there won't be an error if killing and restarting the server.
-        if HTTP.WebSockets.is_upgrade(http.message)
-            # upgrade to websocket
-            ws = ws_upgrade(http)
-            # add to list of viewers and keep open until written to
-            ws_tracker(ws, http.message.target)
-        else
-            # handle HTTP request
-            HTTP.handle(req_handler, http)
-        end
-    end
 
     launch_browser && open_in_default_browser(url)
     # wait until user interrupts the LiveServer (using CTRL+C).
     try
         counter = 1
         while true
-            if WS_INTERRUPT.x || fw.status == :interrupted
+            if WS_INTERRUPT[] || fw.status == :interrupted
                 # rethrow the interruption (which may have happened during
                 # the websocket handling or during the file watching)
                 throw(InterruptException())
@@ -509,25 +494,57 @@ directory. (See also [`example`](@ref) for an example folder).
         end
     catch err
         if !isa(err, InterruptException)
+            if VERBOSE[]
+                @error "serve error" exception=(err, catch_backtrace())
+            end
             throw(err)
         end
     finally
         # cleanup: close everything that might still be alive
-        VERBOSE[] && println("\n⋮ shutting down LiveServer")
+        print("\n⋮ shutting down LiveServer… ")
         # stop the filewatcher
         stop(fw)
         # close any remaining websockets
-        for wss ∈ values(WS_VIEWERS), wsi ∈ wss
-            close(wsi.io)
+        for wss ∈ values(WS_VIEWERS)
+            @sync for wsi in wss
+                isopen(wsi.io) && @async begin
+                    try
+                        wsi.writeclosed = wsi.readclosed = true
+                        close(wsi.io)
+                    catch
+                    end
+                end
+            end
         end
         # empty the dictionary of viewers
         empty!(WS_VIEWERS)
         # shut down the server
-        close(server)
-        VERBOSE[] && println("\n✓ LiveServer shut down.")
+        HTTP.Servers.forceclose(server)
         # reset environment variables
-        CONTENT_DIR[] = ""
+        CONTENT_DIR[]  = ""
         WS_INTERRUPT[] = false
+        println("✓")
     end
     return nothing
+end
+
+function get_server(host, port, req_handler; incr=0)
+    if incr >= 10
+        @error "couldn't find a free port in $incr tries"
+    end
+    try
+        server = HTTP.listen!(host, port; readtimeout=0) do http::HTTP.Stream
+            if HTTP.WebSockets.isupgrade(http.message)
+                # upgrade to websocket and add to list of viewers and keep open
+                # until written to
+                HTTP.WebSockets.upgrade(ws_tracker, http)
+            else
+                # handle HTTP request
+                return req_handler(http)
+            end
+        end
+        return server, port
+    catch IOError
+        return get_server(host, port+1, req_handler; incr=incr+1)
+    end
 end
