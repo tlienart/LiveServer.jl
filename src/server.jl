@@ -1,6 +1,3 @@
-using Base.Filesystem
-import MIMEs
-
 """
     open_in_default_browser(url)
 
@@ -43,7 +40,7 @@ function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
     @sync for wsi in ws_to_update_and_close
         isopen(wsi.io) && @async begin
             try
-                send(wsi, "update")
+                HTTP.WebSockets.send(wsi, "update")
             catch
             end
         end
@@ -73,7 +70,7 @@ the file watcher.
 """
 function file_changed_callback(f_path::AbstractString)
     if VERBOSE[]
-        println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
+        @info "[LiveServer]: Reacting to change in file '$f_path'..."
     end
     if endswith(f_path, ".html")
         # if html file, update viewers of this file only
@@ -95,28 +92,65 @@ end
 
 Return the filesystem path corresponding to a requested path, or an empty
 String if the file was not found.
+
+Cases:
+
+* an explicit pointer with an `index.html` (e.g. `foo/bar/index.html`) is
+given --> change WEB_DIR and serve the page
+* an implicit pointer to an `index.html` (e.g. `foo/bar/` or `foo/bar`) is
+given --> change WEB_DIR and serve the page
+* an explicit pointer to a file is given (e.g. `/sample.jpeg`) --> a full
+path is constructed and served
+* an explicit pointer to a dir without index is given (e.g. `foo/bar`) -->
+move to that directory.
+
+See also issue #135.
 """
 function get_fs_path(req_path::AbstractString)::String
     uri     = HTTP.URI(req_path)
     r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), '/'))
-    fs_path = joinpath(r_parts...)
+    fs_path = joinpath(CONTENT_DIR[], r_parts...)
 
-    if !isempty(CONTENT_DIR[])
-        fs_path = joinpath(CONTENT_DIR[], fs_path)
+    #
+    # Check if it's pointing to an explicit or implicit index file
+    #
+    append = (r_parts[end] == "index.html")
+    tmp = ifelse(
+        append,
+        fs_path,
+        joinpath(fs_path, "index.html")
+    )
+    if isfile(tmp)
+        candrpath = ifelse(append, r_parts[1:end-1], r_parts)
+        WEB_DIR[] = isempty(candrpath) ? "" : joinpath(candrpath...)
+        return tmp
     end
 
-    isfile(fs_path) && return fs_path
+    #
+    # pointer to a file assemble the full path so it can be served properly
+    #
+    fs_path_f = joinpath(
+        CONTENT_DIR[],
+        WEB_DIR[],
+        lstrip_wdir(joinpath(r_parts...))
+    )
+    isfile(fs_path_f) && return fs_path_f
 
-    tmp = joinpath(fs_path, "index.html")
-    isfile(tmp)     && return tmp
+    #
+    # pointer to a dir, content of the dir will be shown as a list
+    # we ensure there's a slash at the end (see also issue #135)
+    #
+    if isdir(fs_path)
+        WEB_DIR[] = ""
+        return joinpath(fs_path, "")
+    end
 
-    # content of the dir will be shown
-     # we ensure there's a slash at the end (see issue #135)
-     isdir(fs_path)  && return joinpath(fs_path, "")
-
-    # 404 will be shown
+    #
+    # unresolved pointer --> try to return a 404
+    #
     return ""
 end
+
 
 """
     append_slash(url::AbstractString) -> url′::AbstractString
@@ -134,8 +168,20 @@ end
 
 Discard the 'CONTENT_DIR' part (passed via `dir=...`) of a path.
 """
-lstrip_cdir(s::AbstractString) =
-    lstrip(s[nextind(s, length(CONTENT_DIR[])):end], ['/', '\\'])
+function lstrip_cdir(s::AbstractString)
+    t = replace(s, Regex("^$(CONTENT_DIR[])") => "")
+    return lstrip(t, ['/', '\\'])
+end
+
+"""
+    lstrip_wdir(s)
+
+Discard the 'WEB_DIR' part of a path (if it exists).
+"""
+function lstrip_wdir(s::AbstractString)
+    t = replace(s, Regex("^$(WEB_DIR[])") => "")
+    return lstrip(t, ['/', '\\'])
+end
 
 """
     get_dir_list(dir::AbstractString) -> index_page::AbstractString
@@ -445,17 +491,20 @@ directory. (See also [`example`](@ref) for an example folder).
              allow_cors::Bool = false
          )::Nothing
 
-     8000 ≤ port ≤ 9000 || throw(
-         ArgumentError("The port must be between 8000 and 9000.")
-     )
-     setverbose(verbose)
+    8000 ≤ port ≤ 9000 || throw(
+        ArgumentError("The port must be between 8000 and 9000.")
+    )
+    setverbose(verbose)
 
-     if !isempty(dir)
-         isdir(dir) || throw(
-             ArgumentError("The specified dir '$dir' is not recognised.")
-         )
-         CONTENT_DIR[] = dir
-     end
+    if !isempty(dir)
+        isdir(dir) || throw(
+            ArgumentError("The specified dir '$dir' is not recognised.")
+        )
+        CONTENT_DIR[] = dir
+    end
+
+    # Ensure WEB_DIR is always reset
+    WEB_DIR[] = ""
 
     start(fw)
 

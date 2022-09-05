@@ -1,4 +1,0 @@
-comment: false
-
-ignore:
-  - "src/precompile.jl"

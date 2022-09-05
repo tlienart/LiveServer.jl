@@ -81,6 +81,7 @@ tasks that you will try to start.
     response = HTTP.get("http://localhost:$port/no.html"; status_exception=false)
     @test response.status == 404
     @test occursin("custom 404", String(response.body))
+    LiveServer.WEB_DIR[] = ""
     # if one asks for something without a </body>, it should just be appended
     response = HTTP.get("http://localhost:$port/tmp.html")
     @test response.status == 200
