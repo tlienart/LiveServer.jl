@@ -29,6 +29,15 @@ const WS_VIEWERS = Dict{String,Vector{HTTP.WebSockets.WebSocket}}()
 """Keep track of whether an interruption happened while processing a websocket."""
 const WS_INTERRUPT = Base.Ref{Bool}(false)
 
+
+set_content_dir(d::String) = (CONTENT_DIR[] = d;)
+reset_content_dir() = set_content_dir("")
+
+set_web_dir(d::String) = (WEB_DIR[] = d;)
+reset_web_dir() = set_web_dir("")
+
+reset_ws_interrupt() = (WS_INTERRUPT[] = false)
+
 #
 # Functions
 #

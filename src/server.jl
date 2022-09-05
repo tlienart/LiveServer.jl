@@ -122,7 +122,7 @@ function get_fs_path(req_path::AbstractString)::String
     )
     if isfile(tmp)
         candrpath = ifelse(append, r_parts[1:end-1], r_parts)
-        WEB_DIR[] = isempty(candrpath) ? "" : joinpath(candrpath...)
+        set_web_dir(isempty(candrpath) ? "" : joinpath(candrpath...))
         return tmp
     end
 
@@ -141,7 +141,7 @@ function get_fs_path(req_path::AbstractString)::String
     # we ensure there's a slash at the end (see also issue #135)
     #
     if isdir(fs_path)
-        WEB_DIR[] = ""
+        reset_web_dir()
         return joinpath(fs_path, "")
     end
 
@@ -500,11 +500,8 @@ directory. (See also [`example`](@ref) for an example folder).
         isdir(dir) || throw(
             ArgumentError("The specified dir '$dir' is not recognised.")
         )
-        CONTENT_DIR[] = dir
+        set_content_dir(dir)
     end
-
-    # Ensure WEB_DIR is always reset
-    WEB_DIR[] = ""
 
     start(fw)
 
@@ -569,9 +566,10 @@ directory. (See also [`example`](@ref) for an example folder).
         empty!(WS_VIEWERS)
         # shut down the server
         HTTP.Servers.forceclose(server)
-        # reset environment variables
-        CONTENT_DIR[]  = ""
-        WS_INTERRUPT[] = false
+        # reset other environment variables
+        reset_content_dir()
+        reset_web_dir()
+        reset_ws_interrupt()
         println("✓")
     end
     return nothing
