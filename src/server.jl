@@ -94,17 +94,15 @@ Return the filesystem path corresponding to a requested path, or an empty
 String if the file was not found.
 
 Cases:
-
-* an explicit pointer with an `index.html` (e.g. `foo/bar/index.html`) is
-given --> change WEB_DIR and serve the page
-* an implicit pointer to an `index.html` (e.g. `foo/bar/` or `foo/bar`) is
-given --> change WEB_DIR and serve the page
-* an explicit pointer to a file is given (e.g. `/sample.jpeg`) --> a full
-path is constructed and served
-* an explicit pointer to a dir without index is given (e.g. `foo/bar`) -->
-move to that directory.
-
-See also issue #135.
+    * an explicit request to an existing `index.html` (e.g. `foo/bar/index.html`)
+        is given --> serve the page and change WEB_DIR unless a parent dir should
+        be preferred (e.g. foo/ has an index.html)
+    * an implicit request to an existing `index.html` (e.g. `foo/bar/` or `foo/bar`)
+        is given --> same as previous case after appending the `index.html`
+    * a request to a file is given (e.g. `/sample.jpeg`) --> figure out what it
+        is relative to, reconstruct the full system path and serve the file
+    * a request for a dir without index is given (e.g. `foo/bar`) --> serve a
+        dedicated index file listing the content of the directory.
 """
 function get_fs_path(req_path::AbstractString)::String
     uri     = HTTP.URI(req_path)
@@ -121,12 +119,17 @@ function get_fs_path(req_path::AbstractString)::String
         joinpath(fs_path, "index.html")
     )
     if isfile(tmp)
-        # if the content dir is the web dir, then skip
+        #
+        # Update the WEB_DIR unless a parent dir is a web dir
+        #
+        # 0. check if the content dir is a web dir
+        #
         if !isfile(joinpath(CONTENT_DIR[], "index.html"))
             # discard the 'index.html'
             cand_parts = ifelse(append, r_parts[1:end-1], r_parts)
-            # try to find the parent web dir, i.e. the upmost parent dir
-            # that contains index.html
+            #
+            # 1. check if an intermediate parent dir is a web dir
+            #
             cand = ""
             if !isempty(cand_parts)
                 for i in eachindex(cand_parts)
@@ -136,6 +139,7 @@ function get_fs_path(req_path::AbstractString)::String
             end
             WEB_DIR[] = cand
         end
+        # serve the index file
         return tmp
     end
 
@@ -145,7 +149,7 @@ function get_fs_path(req_path::AbstractString)::String
     fs_path_f = joinpath(
         CONTENT_DIR[],
         WEB_DIR[],
-        lstrip_wdir(joinpath(r_parts...))
+        joinpath(r_parts...)
     )
     isfile(fs_path_f) && return fs_path_f
 
@@ -183,16 +187,6 @@ Discard the 'CONTENT_DIR' part (passed via `dir=...`) of a path.
 """
 function lstrip_cdir(s::AbstractString)
     t = replace(s, Regex("^$(CONTENT_DIR[])") => "")
-    return lstrip(t, ['/', '\\'])
-end
-
-"""
-    lstrip_wdir(s)
-
-Discard the 'WEB_DIR' part of a path (if it exists).
-"""
-function lstrip_wdir(s::AbstractString)
-    t = replace(s, Regex("^$(WEB_DIR[])") => "")
     return lstrip(t, ['/', '\\'])
 end
 
@@ -305,23 +299,18 @@ function serve_file(
             """)
     end
 
-    target = req.target
-    targ = lstrip(target, '/')
-
-    if !isdir(joinpath(CONTENT_DIR[], targ)) && !isempty(req["Referer"])
+    if !isdir(joinpath(CONTENT_DIR[], target)) && !isempty(req["Referer"])
         host = req["Host"]
         sref = split(req["Referer"], '/')
         idx  = findfirst(x -> x == host, sref)::Int
         rref = joinpath(sref[idx+1:end])
 
-        if startswith(targ, rref)
-            targ = targ[nextind(targ, length(rref)):end]
+        if startswith(target, rref)
+            target = target[nextind(target, length(rref)):end]
         end
-        if startswith(target, '/')
-            targ = "/$targ"
+        if startswith(req.target, '/')
+            target = "/$target"
         end
-
-        target = targ
     end
 
     ret_code = 200

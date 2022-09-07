@@ -119,3 +119,12 @@ $ julia --project=docs -ie 'using YourPackage, LiveServer; servedocs()'
 
 **Note**: this works with [Literate.jl](https://github.com/fredrikekre/Literate.jl) as well.
 See [the docs](https://tlienart.github.io/LiveServer.jl/dev/man/ls+lit/).
+
+
+## DEV/Path testing
+
+See also issue #135 and related PRs.
+
+* `servedocs()`, navigate to literate, images should show
+* `serve()` navigate manually to `docs/build/` should show, remove trailing slash in URL `docs/build` should redirect to `docs/build/`
+* `serve(dir=...)` should work + when navigating to assets etc
