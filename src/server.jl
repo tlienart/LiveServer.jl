@@ -133,7 +133,7 @@ function get_fs_path(req_path::AbstractString)::String
             cand = ""
             if !isempty(cand_parts)
                 for i in eachindex(cand_parts)
-                    cand = joinpath(string.(cand_parts[1:i]))
+                    cand = joinpath(cand_parts[1:i]...)
                     isfile(joinpath(cand, "index.html")) && break
                 end
             end
@@ -303,7 +303,7 @@ function serve_file(
         host = req["Host"]
         sref = split(req["Referer"], '/')
         idx  = findfirst(x -> x == host, sref)::Int
-        rref = joinpath(string.(sref[idx+1:end]))
+        rref = joinpath(sref[idx+1:end]...)
 
         if startswith(target, rref)
             target = target[nextind(target, length(rref)):end]
