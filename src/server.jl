@@ -121,8 +121,24 @@ function get_fs_path(req_path::AbstractString)::String
         joinpath(fs_path, "index.html")
     )
     if isfile(tmp)
-        candrpath = ifelse(append, r_parts[1:end-1], r_parts)
-        set_web_dir(isempty(candrpath) ? "" : joinpath(candrpath...))
+        # if the content dir is the web dir, then skip
+        if !isfile(joinpath(CONTENT_DIR[], "index.html"))
+            # discard the 'index.html'
+            cand_parts = ifelse(append, r_parts[1:end-1], r_parts)
+            # try to find the parent web dir, i.e. the upmost parent dir
+            # that contains index.html
+            cand = ""
+            if !isempty(cand_parts)
+                for i in eachindex(cand_parts)
+                    cand = joinpath(cand_parts[1:i])
+                    isfile(joinpath(cand, "index.html")) && break
+                end
+            end
+            WEB_DIR[] = cand
+        end
+
+        @show WEB_DIR[]
+
         return tmp
     end
 
@@ -134,6 +150,9 @@ function get_fs_path(req_path::AbstractString)::String
         WEB_DIR[],
         lstrip_wdir(joinpath(r_parts...))
     )
+
+    @show fs_path_f
+
     isfile(fs_path_f) && return fs_path_f
 
     #
@@ -141,7 +160,7 @@ function get_fs_path(req_path::AbstractString)::String
     # we ensure there's a slash at the end (see also issue #135)
     #
     if isdir(fs_path)
-        reset_web_dir()
+        WEB_DIR[] = ""
         return joinpath(fs_path, "")
     end
 
@@ -285,8 +304,43 @@ function serve_file(
             allow_cors::Bool = false
         )::HTTP.Response
 
+    target = lstrip(req.target, '/')
+    if !isempty(target) && isdir(target) && !endswith(target, '/')
+        return HTTP.Response("""
+            <meta http-equiv="refresh" content="0; URL=/$target/" />
+            """)
+    end
+
+    target = req.target
+    targ = lstrip(target, '/')
+
+    if !isdir(joinpath(CONTENT_DIR[], targ)) && !isempty(req["Referer"])
+        host = req["Host"]
+        sref = split(req["Referer"], '/')
+        idx  = findfirst(x -> x == host, sref)::Int
+        rref = joinpath(sref[idx+1:end])
+
+        if startswith(targ, rref)
+            targ = targ[nextind(targ, length(rref)):end]
+        end
+        if startswith(target, '/')
+            targ = "/$targ"
+        end
+
+        target = targ
+    end
+
     ret_code = 200
-    fs_path  = get_fs_path(req.target)
+    fs_path  = get_fs_path(target)
+
+    @show req["Host"]
+    @show req["Referer"]
+    @show req.target
+    @show target
+    @show fs_path
+    @show CONTENT_DIR[]
+    @show WEB_DIR[]
+    @show ""
 
     # if get_fs_path returns an empty string, there's two cases:
     # 1. [CASE 3] the path is a directory without an `index.html` --> list dir
@@ -300,13 +354,13 @@ function serve_file(
 
         ret_code = 404
         # Check if /404/ or /404.html exists and serve that as a body
-        for f in ("/404/", "/404.html")
-            maybe_path = get_fs_path(f)
-            if !isempty(maybe_path)
-                fs_path = maybe_path
-                break
-            end
-        end
+        # for f in ("/404/", "/404.html")
+        #     maybe_path = get_fs_path(f)
+        #     if !isempty(maybe_path)
+        #         fs_path = maybe_path
+        #         break
+        #     end
+        # end
 
         # If still not found a body, return a generic error message
         if isempty(fs_path)
