@@ -136,9 +136,6 @@ function get_fs_path(req_path::AbstractString)::String
             end
             WEB_DIR[] = cand
         end
-
-        @show WEB_DIR[]
-
         return tmp
     end
 
@@ -150,9 +147,6 @@ function get_fs_path(req_path::AbstractString)::String
         WEB_DIR[],
         lstrip_wdir(joinpath(r_parts...))
     )
-
-    @show fs_path_f
-
     isfile(fs_path_f) && return fs_path_f
 
     #
@@ -333,15 +327,6 @@ function serve_file(
     ret_code = 200
     fs_path  = get_fs_path(target)
 
-    @show req["Host"]
-    @show req["Referer"]
-    @show req.target
-    @show target
-    @show fs_path
-    @show CONTENT_DIR[]
-    @show WEB_DIR[]
-    @show ""
-
     # if get_fs_path returns an empty string, there's two cases:
     # 1. [CASE 3] the path is a directory without an `index.html` --> list dir
     # 2. [CASE 4] otherwise serve a 404 (see if there's a dedicated 404 path,
@@ -354,13 +339,13 @@ function serve_file(
 
         ret_code = 404
         # Check if /404/ or /404.html exists and serve that as a body
-        # for f in ("/404/", "/404.html")
-        #     maybe_path = get_fs_path(f)
-        #     if !isempty(maybe_path)
-        #         fs_path = maybe_path
-        #         break
-        #     end
-        # end
+        for f in ("/404/", "/404.html")
+            maybe_path = get_fs_path(f)
+            if !isempty(maybe_path)
+                fs_path = maybe_path
+                break
+            end
+        end
 
         # If still not found a body, return a generic error message
         if isempty(fs_path)
