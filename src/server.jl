@@ -109,63 +109,30 @@ function get_fs_path(req_path::AbstractString)::String
     r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), '/'))
     fs_path = joinpath(CONTENT_DIR[], r_parts...)
 
-    #
-    # Check if it's pointing to an explicit or implicit index file
-    #
-    append = (r_parts[end] == "index.html")
-    tmp = ifelse(
-        append,
+    resolved_fs_path = ""
+    cand_index = ifelse(
+        r_parts[end] == "index.html",
         fs_path,
         joinpath(fs_path, "index.html")
     )
-    if isfile(tmp)
-        #
-        # Update the WEB_DIR unless a parent dir is a web dir
-        #
-        # 0. check if the content dir is a web dir
-        #
-        if !isfile(joinpath(CONTENT_DIR[], "index.html"))
-            # discard the 'index.html'
-            cand_parts = ifelse(append, r_parts[1:end-1], r_parts)
-            #
-            # 1. check if an intermediate parent dir is a web dir
-            #
-            cand = ""
-            if !isempty(cand_parts)
-                for i in eachindex(cand_parts)
-                    cand = joinpath(cand_parts[1:i]...)
-                    isfile(joinpath(cand, "index.html")) && break
-                end
-            end
-            WEB_DIR[] = cand
-        end
-        # serve the index file
-        return tmp
+
+    if isfile(cand_index)
+        resolved_fs_path = cand_index
+
+    elseif isfile(fs_path)
+        resolved_fs_path = fs_path
+
+    elseif isdir(fs_path)
+        resolved_fs_path = joinpath(fs_path, "")
+
     end
 
-    #
-    # pointer to a file assemble the full path so it can be served properly
-    #
-    fs_path_f = joinpath(
-        CONTENT_DIR[],
-        WEB_DIR[],
-        joinpath(r_parts...)
-    )
-    isfile(fs_path_f) && return fs_path_f
-
-    #
-    # pointer to a dir, content of the dir will be shown as a list
-    # we ensure there's a slash at the end (see also issue #135)
-    #
-    if isdir(fs_path)
-        WEB_DIR[] = ""
-        return joinpath(fs_path, "")
-    end
-
-    #
-    # unresolved pointer --> try to return a 404
-    #
-    return ""
+    DEBUG[] && @info """
+        👀 RESOLVE (req: $req_path) 👀
+            fs_path:    $(fs_path)
+            v_fs_path:  $(resolved_fs_path)
+        """
+    return resolved_fs_path
 end
 
 
@@ -186,8 +153,13 @@ end
 Discard the 'CONTENT_DIR' part (passed via `dir=...`) of a path.
 """
 function lstrip_cdir(s::AbstractString)
-    t = replace(s, Regex("^$(CONTENT_DIR[])") => "")
-    return lstrip(t, ['/', '\\'])
+    # we can't easily do a regex match here because CONTENT_DIR may
+    # contain regex characters such as `+` or `-`
+    ss = string(s)
+    if startswith(s, CONTENT_DIR[])
+        ss = ss[nextind(s, lastindex(CONTENT_DIR[])):end]
+    end
+    return string(lstrip(ss, ['/', '\\']))
 end
 
 """
@@ -292,29 +264,90 @@ function serve_file(
             allow_cors::Bool = false
         )::HTTP.Response
 
-    target = lstrip(req.target, '/')
-    if !isempty(target) && isdir(target) && !endswith(target, '/')
-        return HTTP.Response("""
-            <meta http-equiv="refresh" content="0; URL=/$target/" />
-            """)
+    req    = deepcopy(req)
+    ref    = req["Referer"]
+    host   = req["Host"]
+    target = req.target
+
+    DEBUG[] && @info """
+        🍯 REQUEST (req: $(target)) 🍯
+            req[referer]: $ref
+        """
+
+    #
+    # Check if the request is effectively a path to a directory and,
+    # if so, whether the path was given with a trailing `/`. If it is
+    # a path to a dir but without the trailing slash, send a redirect.
+    #
+    relative_target    = ifelse(target == "/", "/", string(lstrip(target, '/')))
+    has_trailing_slash = endswith(relative_target, '/')
+
+    if !isempty(relative_target) && !has_trailing_slash
+        cand_dir = joinpath(
+            CONTENT_DIR[],
+            relative_target
+        )
+        if isdir(cand_dir)
+            DEBUG[] && @info """
+                🔀 REDIRECT
+                """
+            return HTTP.Response(301, ["Location" => "/$(relative_target)/"], "")
+        end
     end
 
-    if !isdir(joinpath(CONTENT_DIR[], target)) && !isempty(req["Referer"])
-        host = req["Host"]
-        sref = split(req["Referer"], '/')
-        idx  = findfirst(x -> x == host, sref)::Int
-        rref = joinpath(sref[idx+1:end]...)
+    #
+    # Here we have effectively three cases for req.target
+    #   > a path with a trailing slash (e.g. foo/bar/)
+    #       --> resolve either a page or a dir list (or 404)
+    #   > a direct path to a file that isn't an index.html such as
+    #       /assets/foo.jpg
+    #   > something that doesn't match a file/dir --> 404.
+    #
+    # In the case of a request to a file that isn't an index.html,
+    # we may need to correct something. Let's say that an html page
+    # has a `/assets/foo.jpg`. The first `/` will be resolved in the
+    # request by HTTP so that the effective requested target will be
+    #
+    #   (referer)/assets/foo.jpg
+    #
+    # if the path was given as `assets/foo.jpg` instead, the effective
+    # requested target would be
+    #
+    #   assets/foo.jpg
+    #
+    # in order to disambiguate this, we check whether there is a match
+    # between the start of the req.target and the referer. If so, we
+    # discard the matching bit.
+    #
+    if !isempty(ref) && !has_trailing_slash && !isfile(joinpath(CONTENT_DIR[], relative_target))
+        # eg host -- localhost:8000
+        # eg ref  -- http://localhost:8000/man/ls+lit/
+        split_ref = split(ref, '/', keepempty=false)
+        idx_host  = findfirst(x -> x == host, split_ref)
+        split_ref = split_ref[idx_host+1:end]
+        split_req = split(target, '/', keepempty=false)
+        cntr = 1
 
-        if startswith(target, rref)
-            target = target[nextind(target, length(rref)):end]
+        for i in eachindex(split_ref)
+            (split_ref[i] != split_req[i]) && break
+            cntr += 1
         end
-        if startswith(req.target, '/')
-            target = "/$target"
+        if cntr > 1
+            target = joinpath(split_req[cntr:end]...)
+            DEBUG[] && @info """
+                🚨 REFERER SCRUB
+                    $(req.target) --> $target
+                """
         end
     end
 
     ret_code = 200
     fs_path  = get_fs_path(target)
+
+    DEBUG[] && @info """
+        😅 POST RESOLVE ($(req.target))
+            fs_path: $(fs_path) [$(ifelse(isempty(fs_path), "❌ ❌ ❌ ", ""))]
+        """
 
     # if get_fs_path returns an empty string, there's two cases:
     # 1. [CASE 3] the path is a directory without an `index.html` --> list dir
@@ -483,6 +516,7 @@ directory. (See also [`example`](@ref) for an example folder).
         working directory.
     `verbose`: boolean switch to make the server print information about file
                 changes and connections.
+    `debug`: bolean switch to make the server print debug messages.
     `coreloopfun`: function which can be run every 0.1 second while the
                     liveserver is running; it takes two arguments: the cycle
                     counter and the filewatcher. By default the coreloop does
@@ -512,6 +546,7 @@ directory. (See also [`example`](@ref) for an example folder).
              port::Int = 8000,
              dir::AbstractString = "",
              verbose::Bool = false,
+             debug::Bool = false,
              coreloopfun::Function = (c, fw)->nothing,
              preprocess_request::Function = identity,
              inject_browser_reload_script::Bool = true,
@@ -522,7 +557,8 @@ directory. (See also [`example`](@ref) for an example folder).
     8000 ≤ port ≤ 9000 || throw(
         ArgumentError("The port must be between 8000 and 9000.")
     )
-    setverbose(verbose)
+    set_verbose(verbose)
+    set_debug(debug)
 
     if !isempty(dir)
         isdir(dir) || throw(
@@ -596,7 +632,6 @@ directory. (See also [`example`](@ref) for an example folder).
         HTTP.Servers.forceclose(server)
         # reset other environment variables
         reset_content_dir()
-        reset_web_dir()
         reset_ws_interrupt()
         println("✓")
     end

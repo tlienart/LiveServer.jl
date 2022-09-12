@@ -164,11 +164,11 @@ end
 end
 
 @testset "Misc utils                  " begin
-    LS.setverbose(false)
+    LS.set_verbose(false)
     @test !LS.VERBOSE.x
-    LS.setverbose(true)
+    LS.set_verbose(true)
     @test LS.VERBOSE.x
-    LS.setverbose(false) # we don't want the tests to show lots of stuff
+    LS.set_verbose(false) # we don't want the tests to show lots of stuff
 
     bk = pwd()
     cd(mktempdir())

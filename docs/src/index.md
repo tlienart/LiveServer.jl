@@ -23,7 +23,7 @@ julia> using LiveServer
 julia> LiveServer.example() # creates an "example/" folder with some files
 julia> cd("example")
 julia> serve() # starts the local server & the file watching
-✓ LiveServer listening on http://localhost:8000...
+✓ LiveServer listening on http://localhost:8000/ ...
   (use CTRL+C to shut down)
 ```
 
@@ -45,9 +45,10 @@ Open a browser and go to https://localhost:8001/ to see the rendered content of 
 You can set the port to a custom number.
 This is similar to the [`http.server`](https://docs.python.org/3/library/http.server.html) in Python.
 
-### Serve docs
+### Live serve your docs
 
-A function derived from `serve` that will be convenient to Julia package developpers is `servedocs`. It runs [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl) along with `LiveServer` to render your docs and will track and render any modifications to your docs.
+A function derived from `serve` that will be convenient to Julia package developers is `servedocs`.
+It runs [Documenter.jl](https://github.com/JuliaDocs/Documenter.jl) along with `LiveServer` to render your docs and will track and render any modifications to your docs.
 This instantaneous feedback makes writing docs significantly easier and faster.
 
 Assuming you are in `directory/to/YourPackage.jl` and that you have a `docs/` folder as prescribed by `Documenter`, just run:
@@ -66,7 +67,7 @@ julia> servedocs()
 Open a browser and go to `http://localhost:8000/` to see your docs being rendered; try modifying files (e.g. `docs/index.md`) and watch the changes being rendered in the browser.
 
 You can also use LiveServer with both Documenter and [Literate.jl](https://github.com/fredrikekre/Literate.jl).
-This is explained [here](man/ls+lit.md).
+This is explained [here](man/ls+lit/).
 
 ## How it works
 

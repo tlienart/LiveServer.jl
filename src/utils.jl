@@ -183,6 +183,7 @@ subfolder `docs`.
 """
 function servedocs(;
             verbose::Bool=false,
+            debug::Bool=false,
             literate::Union{Nothing,String}=nothing,
             doc_env::Bool=false,
             skip_dir::String="",
@@ -234,6 +235,7 @@ function servedocs(;
         port=port,
         dir=joinpath(foldername, buildfoldername),
         verbose=verbose,
+        debug=debug,
         launch_browser=launch_browser
     )
 
@@ -246,14 +248,6 @@ end
 #
 # Miscellaneous utils
 #
-
-"""
-    setverbose(b)
-
-Set the verbosity of LiveServer to either `true` (showing messages upon events) or `false` (default).
-"""
-setverbose(b::Bool) = (VERBOSE[] = b)
-
 
 """
     example()
