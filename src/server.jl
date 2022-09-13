@@ -271,7 +271,6 @@ function serve_file(
 
     DEBUG[] && @info """
         🍯 REQUEST (req: $(target)) 🍯
-            req[referer]: $ref
         """
 
     #
@@ -279,65 +278,31 @@ function serve_file(
     # if so, whether the path was given with a trailing `/`. If it is
     # a path to a dir but without the trailing slash, send a redirect.
     #
-    relative_target    = ifelse(target == "/", "/", string(lstrip(target, '/')))
-    has_trailing_slash = endswith(relative_target, '/')
-
-    if !isempty(relative_target) && !has_trailing_slash
-        cand_dir = joinpath(
-            CONTENT_DIR[],
-            relative_target
-        )
-        if isdir(cand_dir)
-            DEBUG[] && @info """
-                🔀 REDIRECT
-                """
-            return HTTP.Response(301, ["Location" => "/$(relative_target)/"], "")
+    #   Example: foo/bar        --> foo/bar/
+    #            foo/bar?search --> foo/bar/?search
+    #            foo/bar#anchor --> foo/bar/#anchor
+    #
+    rt = ifelse(target == "/", "/", string(lstrip(target, '/')))
+    if !isempty(rt)
+        idx   = findfirst(x -> x in ('#', '?'), rt)
+        cand  = rt
+        query = ""
+        if !isnothing(idx)
+            cand  = rt[1:prevind(rt, idx)]
+            query = rt[idx:end]
         end
-    end
-
-    #
-    # Here we have effectively three cases for req.target
-    #   > a path with a trailing slash (e.g. foo/bar/)
-    #       --> resolve either a page or a dir list (or 404)
-    #   > a direct path to a file that isn't an index.html such as
-    #       /assets/foo.jpg
-    #   > something that doesn't match a file/dir --> 404.
-    #
-    # In the case of a request to a file that isn't an index.html,
-    # we may need to correct something. Let's say that an html page
-    # has a `/assets/foo.jpg`. The first `/` will be resolved in the
-    # request by HTTP so that the effective requested target will be
-    #
-    #   (referer)/assets/foo.jpg
-    #
-    # if the path was given as `assets/foo.jpg` instead, the effective
-    # requested target would be
-    #
-    #   assets/foo.jpg
-    #
-    # in order to disambiguate this, we check whether there is a match
-    # between the start of the req.target and the referer. If so, we
-    # discard the matching bit.
-    #
-    if !isempty(ref) && !has_trailing_slash && !isfile(joinpath(CONTENT_DIR[], relative_target))
-        # eg host -- localhost:8000
-        # eg ref  -- http://localhost:8000/man/ls+lit/
-        split_ref = split(ref, '/', keepempty=false)
-        idx_host  = findfirst(x -> x == host, split_ref)
-        split_ref = split_ref[idx_host+1:end]
-        split_req = split(target, '/', keepempty=false)
-        cntr = 1
-
-        for i in eachindex(split_ref)
-            (split_ref[i] != split_req[i]) && break
-            cntr += 1
-        end
-        if cntr > 1
-            target = joinpath(split_req[cntr:end]...)
+        if !endswith(cand, '/') && isdir(joinpath(CONTENT_DIR[], cand))
+            redir = "/$(cand)/$query"
             DEBUG[] && @info """
-                🚨 REFERER SCRUB
-                    $(req.target) --> $target
+                🔀 REDIRECT --> $redir
                 """
+            return HTTP.Response(
+                301,
+                [
+                    "Location" => redir
+                ],
+                ""
+            )
         end
     end
 

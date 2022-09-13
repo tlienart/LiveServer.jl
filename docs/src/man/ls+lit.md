@@ -99,4 +99,4 @@ if you then navigate to `localhost:8000` you should end up with
 
 if you modify `test_dir/docs/literate/man/pg1.jl` for instance writing `f(4)` it will be applied directly:
 
-![](assets/testlit2.png)
+![](/assets/testlit2.png)
