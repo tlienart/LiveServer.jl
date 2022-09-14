@@ -129,22 +129,9 @@ function get_fs_path(req_path::AbstractString)::String
 
     DEBUG[] && @info """
         👀 RESOLVE (req: $req_path) 👀
-            fs_path:    $(fs_path)
-            v_fs_path:  $(resolved_fs_path)
+            fs_path:    $(fs_path) ($(resolved_fs_path))
         """
     return resolved_fs_path
-end
-
-
-"""
-    append_slash(url::AbstractString) -> url′::AbstractString
-
-Append `/` to the path part of `url`; i.e., transform `a/b` to `a/b/` and `/a/b?c=d` to
-`/a/b/?c=d`.
-"""
-function append_slash(url_str::AbstractString)
-    uri = HTTP.URI(url_str)
-    return string(endswith(uri.path, "/") ? uri : HTTP.URI(uri; path = uri.path * "/"))
 end
 
 """
@@ -170,8 +157,11 @@ Generate list of content at path `dir`.
 function get_dir_list(dir::AbstractString)
     list   = readdir(dir; join=true, sort=true)
     io     = IOBuffer()
-    predir = ifelse(isempty(CONTENT_DIR[]), "", "[$(append_slash(CONTENT_DIR[]))]")
-    sdir   = predir * lstrip_cdir(dir)
+    sdir   = dir
+    cdir   = CONTENT_DIR[]
+    if !isempty(cdir)
+        sdir = join([cdir, lstrip_cdir(dir)], "/")
+    end
 
     write(io, """
         <!DOCTYPE HTML>
@@ -264,15 +254,6 @@ function serve_file(
             allow_cors::Bool = false
         )::HTTP.Response
 
-    req    = deepcopy(req)
-    ref    = req["Referer"]
-    host   = req["Host"]
-    target = req.target
-
-    DEBUG[] && @info """
-        🍯 REQUEST (req: $(target)) 🍯
-        """
-
     #
     # Check if the request is effectively a path to a directory and,
     # if so, whether the path was given with a trailing `/`. If it is
@@ -282,35 +263,27 @@ function serve_file(
     #            foo/bar?search --> foo/bar/?search
     #            foo/bar#anchor --> foo/bar/#anchor
     #
-    rt = ifelse(target == "/", "/", string(lstrip(target, '/')))
-    if !isempty(rt)
-        idx   = findfirst(x -> x in ('#', '?'), rt)
-        cand  = rt
-        query = ""
-        if !isnothing(idx)
-            cand  = rt[1:prevind(rt, idx)]
-            query = rt[idx:end]
-        end
-        if !endswith(cand, '/') && isdir(joinpath(CONTENT_DIR[], cand))
-            redir = "/$(cand)/$query"
-            DEBUG[] && @info """
-                🔀 REDIRECT --> $redir
-                """
-            return HTTP.Response(
-                301,
-                [
-                    "Location" => redir
-                ],
-                ""
-            )
-        end
+    uri    = HTTP.URI(req.target)
+
+    DEBUG[] && @info """
+        REQUEST ($(req.target))
+            uri.path ($(uri.path))
+        """
+
+    cand_dir = joinpath(CONTENT_DIR[], split(uri.path, '/')...)
+    if !endswith(uri.path, "/") && isdir(cand_dir)
+        target = string(HTTP.URI(uri; path=uri.path * "/"))
+        DEBUG[] && @info """
+            🔃 REDIRECT ($(req.target) --> $target)
+            """
+        return HTTP.Response(301, ["Location" => target], "")
     end
 
     ret_code = 200
-    fs_path  = get_fs_path(target)
+    fs_path  = get_fs_path(req.target)
 
     DEBUG[] && @info """
-        😅 POST RESOLVE ($(req.target))
+        PATH RESOLUTION ($(req.target))
             fs_path: $(fs_path) [$(ifelse(isempty(fs_path), "❌ ❌ ❌ ", ""))]
         """
 
