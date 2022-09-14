@@ -13,10 +13,6 @@
     req = "/test/dummies/?query=string"
     @test LS.get_fs_path(req) == "test/dummies/index.html"
     cd(bk)
-
-    @test LS.append_slash("/a/b") == "/a/b/"
-    @test LS.append_slash("/a/b?c=d") == "/a/b/?c=d"
-    @test LS.append_slash("/a/b/?c=d") == "/a/b/?c=d"
 end
 
 #=
