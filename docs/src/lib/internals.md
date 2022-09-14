@@ -78,5 +78,5 @@ LiveServer.scan_docs!
 
 ```@docs
 LiveServer.example
-LiveServer.setverbose
+LiveServer.set_verbose
 ```

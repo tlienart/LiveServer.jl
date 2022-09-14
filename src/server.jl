@@ -1,6 +1,3 @@
-using Base.Filesystem
-import MIMEs
-
 """
     open_in_default_browser(url)
 
@@ -43,7 +40,7 @@ function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
     @sync for wsi in ws_to_update_and_close
         isopen(wsi.io) && @async begin
             try
-                send(wsi, "update")
+                HTTP.WebSockets.send(wsi, "update")
             catch
             end
         end
@@ -73,7 +70,7 @@ the file watcher.
 """
 function file_changed_callback(f_path::AbstractString)
     if VERBOSE[]
-        println("ℹ [LiveUpdater]: Reacting to change in file '$f_path'...")
+        @info "[LiveServer]: Reacting to change in file '$f_path'..."
     end
     if endswith(f_path, ".html")
         # if html file, update viewers of this file only
@@ -95,38 +92,46 @@ end
 
 Return the filesystem path corresponding to a requested path, or an empty
 String if the file was not found.
+
+Cases:
+    * an explicit request to an existing `index.html` (e.g. `foo/bar/index.html`)
+        is given --> serve the page and change WEB_DIR unless a parent dir should
+        be preferred (e.g. foo/ has an index.html)
+    * an implicit request to an existing `index.html` (e.g. `foo/bar/` or `foo/bar`)
+        is given --> same as previous case after appending the `index.html`
+    * a request to a file is given (e.g. `/sample.jpeg`) --> figure out what it
+        is relative to, reconstruct the full system path and serve the file
+    * a request for a dir without index is given (e.g. `foo/bar`) --> serve a
+        dedicated index file listing the content of the directory.
 """
 function get_fs_path(req_path::AbstractString)::String
     uri     = HTTP.URI(req_path)
     r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), '/'))
-    fs_path = joinpath(r_parts...)
+    fs_path = joinpath(CONTENT_DIR[], r_parts...)
 
-    if !isempty(CONTENT_DIR[])
-        fs_path = joinpath(CONTENT_DIR[], fs_path)
+    resolved_fs_path = ""
+    cand_index = ifelse(
+        r_parts[end] == "index.html",
+        fs_path,
+        joinpath(fs_path, "index.html")
+    )
+
+    if isfile(cand_index)
+        resolved_fs_path = cand_index
+
+    elseif isfile(fs_path)
+        resolved_fs_path = fs_path
+
+    elseif isdir(fs_path)
+        resolved_fs_path = joinpath(fs_path, "")
+
     end
 
-    isfile(fs_path) && return fs_path
-
-    tmp = joinpath(fs_path, "index.html")
-    isfile(tmp)     && return tmp
-
-    # content of the dir will be shown
-     # we ensure there's a slash at the end (see issue #135)
-     isdir(fs_path)  && return joinpath(fs_path, "")
-
-    # 404 will be shown
-    return ""
-end
-
-"""
-    append_slash(url::AbstractString) -> url′::AbstractString
-
-Append `/` to the path part of `url`; i.e., transform `a/b` to `a/b/` and `/a/b?c=d` to
-`/a/b/?c=d`.
-"""
-function append_slash(url_str::AbstractString)
-    uri = HTTP.URI(url_str)
-    return string(endswith(uri.path, "/") ? uri : HTTP.URI(uri; path = uri.path * "/"))
+    DEBUG[] && @info """
+        👀 RESOLVE (req: $req_path) 👀
+            fs_path:    $(fs_path) ($(resolved_fs_path))
+        """
+    return resolved_fs_path
 end
 
 """
@@ -134,8 +139,15 @@ end
 
 Discard the 'CONTENT_DIR' part (passed via `dir=...`) of a path.
 """
-lstrip_cdir(s::AbstractString) =
-    lstrip(s[nextind(s, length(CONTENT_DIR[])):end], ['/', '\\'])
+function lstrip_cdir(s::AbstractString)
+    # we can't easily do a regex match here because CONTENT_DIR may
+    # contain regex characters such as `+` or `-`
+    ss = string(s)
+    if startswith(s, CONTENT_DIR[])
+        ss = ss[nextind(s, lastindex(CONTENT_DIR[])):end]
+    end
+    return string(lstrip(ss, ['/', '\\']))
+end
 
 """
     get_dir_list(dir::AbstractString) -> index_page::AbstractString
@@ -145,8 +157,11 @@ Generate list of content at path `dir`.
 function get_dir_list(dir::AbstractString)
     list   = readdir(dir; join=true, sort=true)
     io     = IOBuffer()
-    predir = ifelse(isempty(CONTENT_DIR[]), "", "[$(append_slash(CONTENT_DIR[]))]")
-    sdir   = predir * lstrip_cdir(dir)
+    sdir   = dir
+    cdir   = CONTENT_DIR[]
+    if !isempty(cdir)
+        sdir = join([cdir, lstrip_cdir(dir)], "/")
+    end
 
     write(io, """
         <!DOCTYPE HTML>
@@ -239,8 +254,38 @@ function serve_file(
             allow_cors::Bool = false
         )::HTTP.Response
 
+    #
+    # Check if the request is effectively a path to a directory and,
+    # if so, whether the path was given with a trailing `/`. If it is
+    # a path to a dir but without the trailing slash, send a redirect.
+    #
+    #   Example: foo/bar        --> foo/bar/
+    #            foo/bar?search --> foo/bar/?search
+    #            foo/bar#anchor --> foo/bar/#anchor
+    #
+    uri    = HTTP.URI(req.target)
+
+    DEBUG[] && @info """
+        REQUEST ($(req.target))
+            uri.path ($(uri.path))
+        """
+
+    cand_dir = joinpath(CONTENT_DIR[], split(uri.path, '/')...)
+    if !endswith(uri.path, "/") && isdir(cand_dir)
+        target = string(HTTP.URI(uri; path=uri.path * "/"))
+        DEBUG[] && @info """
+            🔃 REDIRECT ($(req.target) --> $target)
+            """
+        return HTTP.Response(301, ["Location" => target], "")
+    end
+
     ret_code = 200
     fs_path  = get_fs_path(req.target)
+
+    DEBUG[] && @info """
+        PATH RESOLUTION ($(req.target))
+            fs_path: $(fs_path) [$(ifelse(isempty(fs_path), "❌ ❌ ❌ ", ""))]
+        """
 
     # if get_fs_path returns an empty string, there's two cases:
     # 1. [CASE 3] the path is a directory without an `index.html` --> list dir
@@ -409,6 +454,7 @@ directory. (See also [`example`](@ref) for an example folder).
         working directory.
     `verbose`: boolean switch to make the server print information about file
                 changes and connections.
+    `debug`: bolean switch to make the server print debug messages.
     `coreloopfun`: function which can be run every 0.1 second while the
                     liveserver is running; it takes two arguments: the cycle
                     counter and the filewatcher. By default the coreloop does
@@ -438,6 +484,7 @@ directory. (See also [`example`](@ref) for an example folder).
              port::Int = 8000,
              dir::AbstractString = "",
              verbose::Bool = false,
+             debug::Bool = false,
              coreloopfun::Function = (c, fw)->nothing,
              preprocess_request::Function = identity,
              inject_browser_reload_script::Bool = true,
@@ -445,17 +492,18 @@ directory. (See also [`example`](@ref) for an example folder).
              allow_cors::Bool = false
          )::Nothing
 
-     8000 ≤ port ≤ 9000 || throw(
-         ArgumentError("The port must be between 8000 and 9000.")
-     )
-     setverbose(verbose)
+    8000 ≤ port ≤ 9000 || throw(
+        ArgumentError("The port must be between 8000 and 9000.")
+    )
+    set_verbose(verbose)
+    set_debug(debug)
 
-     if !isempty(dir)
-         isdir(dir) || throw(
-             ArgumentError("The specified dir '$dir' is not recognised.")
-         )
-         CONTENT_DIR[] = dir
-     end
+    if !isempty(dir)
+        isdir(dir) || throw(
+            ArgumentError("The specified dir '$dir' is not recognised.")
+        )
+        set_content_dir(dir)
+    end
 
     start(fw)
 
@@ -520,9 +568,9 @@ directory. (See also [`example`](@ref) for an example folder).
         empty!(WS_VIEWERS)
         # shut down the server
         HTTP.Servers.forceclose(server)
-        # reset environment variables
-        CONTENT_DIR[]  = ""
-        WS_INTERRUPT[] = false
+        # reset other environment variables
+        reset_content_dir()
+        reset_ws_interrupt()
         println("✓")
     end
     return nothing
