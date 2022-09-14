@@ -1,3 +1,5 @@
 example/* linguist-vendored
 test/mimes/* linguist-vendored
 example/* linguist-vendored
+example/css/* linguist-vendored
+docs/src/assets/* linguist-vendored
