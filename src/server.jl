@@ -378,7 +378,12 @@ function serve_file(
         end
     end
 
-    headers = ["Content-Type" => content_type]
+    headers = [
+        "Content-Type" => content_type,
+    ]
+    if startswith(content_type, "video/")
+        push!(headers, "Content-Length" => string(stat(fs_path).size))
+    end
 
     if allow_cors
         push!(headers, "Access-Control-Allow-Origin" => "*")
