@@ -389,6 +389,7 @@ function serve_file(
         range = parse.(Int, range_match.captures)
         push!(headers, "Content-Range" => "bytes $(range[1])-$(range[2])/$(binary_length(content))")
         content = @view content[1+range[1]:1+range[2]]
+        ret_code = 206
     end
     if allow_cors
         push!(headers, "Access-Control-Allow-Origin" => "*")
