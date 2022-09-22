@@ -377,12 +377,24 @@ function serve_file(
             content = take!(io)
         end
     end
+    
+    range_match = match(r"bytes=(\d+)-(\d+)" , HTTP.header(req, "Range", ""))
+    is_ranged = !isnothing(range_match)
+    
 
-    headers = ["Content-Type" => content_type]
-
+    headers = [
+        "Content-Type" => content_type,
+    ]
+    if is_ranged
+        range = parse.(Int, range_match.captures)
+        push!(headers, "Content-Range" => "bytes $(range[1])-$(range[2])/$(binary_length(content))")
+        content = @view content[1+range[1]:1+range[2]]
+        ret_code = 206
+    end
     if allow_cors
         push!(headers, "Access-Control-Allow-Origin" => "*")
     end
+    push!(headers, "Content-Length" => string(binary_length(content)))
     resp         = HTTP.Response(ret_code, content)
     resp.headers = HTTP.mkheaders(headers)
 
@@ -392,6 +404,9 @@ function serve_file(
     # return the response
     return resp
 end
+
+binary_length(s::AbstractString) = ncodeunits(s)
+binary_length(s::AbstractVector{UInt8}) = length(s)
 
 
 """
