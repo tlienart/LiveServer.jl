@@ -23,6 +23,7 @@ function servedocs_callback!(
             literate::Union{Nothing,String},
             skip_dirs::Vector{String},
             skip_files::Vector{String},
+            include_dirs::Vector{String},
             foldername::String,
             buildfoldername::String)
     # ignore things happening in the build folder (generated files etc)
@@ -40,7 +41,7 @@ function servedocs_callback!(
     if fp == path2makejl
         # it's easier to start from scratch (takes negligible time)
         empty!(dw.watchedfiles)
-        scan_docs!(dw, foldername, path2makejl, literate)
+        scan_docs!(dw, foldername, path2makejl, literate, include_dirs)
     end
 
     # Run a Documenter pass
@@ -62,7 +63,8 @@ See the docs of the parent function `servedocs`.
 function scan_docs!(dw::SimpleWatcher,
                     foldername::String,
                     path2makejl::String,
-                    literate::Union{Nothing,String}
+                    literate::Union{Nothing,String},
+                    include_dirs::Vector{String},
                     )::Nothing
     # Typical expected structure:
     #   docs
@@ -75,12 +77,21 @@ function scan_docs!(dw::SimpleWatcher,
     if !isdir(foldername) || !isdir(src)
         error("I didn't find a $foldername/ or $foldername/src/ folder.")
     end
-    # watch the make.jl file as well as
 
+    # watch the make.jl file as well as
     push!(dw.watchedfiles, WatchedFile(path2makejl))
+
+    # include all files in the docs/src directory
     if isdir(foldername)
         # add all files in `docs/src` to watched files
         for (root, _, files) ∈ walkdir(joinpath(foldername, "src")), file ∈ files
+            push!(dw.watchedfiles, WatchedFile(joinpath(root, file)))
+        end
+    end
+
+    # include all files in user-specified include directories
+    for idir in filter(isdir, include_dirs)
+        for (root, _, files) in walkdir(idir), file in files
             push!(dw.watchedfiles, WatchedFile(joinpath(root, file)))
         end
     end
@@ -172,6 +183,8 @@ subfolder `docs`.
 * `skip_dirs=[]`: same as `skip_dir` but for a list of such dirs. Takes
                   precedence over `skip_dir`.
 * `skip_files=[]`: a vector of files that should not trigger regeneration.
+* `include_dirs=[]`: extra source directories to watch
+                     (in addition to `joinpath(foldername, "src")`).
 * `foldername="docs"`: specify a different path for the content.
 * `buildfoldername="build"`: specify a different path for the build.
 * `makejl="make.jl"`: path of the script generating the documentation relative
@@ -189,6 +202,7 @@ function servedocs(;
             skip_dir::String="",
             skip_dirs::Vector{String}=String[],
             skip_files::Vector{String}=String[],
+            include_dirs::Vector{String}=String[],
             foldername::String="docs",
             buildfoldername::String="build",
             makejl::String="make.jl",
@@ -202,6 +216,7 @@ function servedocs(;
     end
     skip_dirs = abspath.(skip_dirs)
     skip_files = abspath.(skip_files)
+    include_dirs = abspath.(include_dirs)
 
     path2makejl = joinpath(foldername, makejl)
 
@@ -212,12 +227,12 @@ function servedocs(;
         docwatcher,
         fp -> servedocs_callback!(
                 docwatcher, fp, path2makejl,
-                literate, skip_dirs, skip_files, foldername, buildfoldername
+                literate, skip_dirs, skip_files, include_dirs, foldername, buildfoldername
         )
     )
 
     # Scan the folder and update the list of files to watch
-    scan_docs!(docwatcher, foldername, path2makejl, literate)
+    scan_docs!(docwatcher, foldername, path2makejl, literate, include_dirs)
 
     # activate the doc environment if required
     doc_env && Pkg.activate(joinpath(foldername, "Project.toml"))
