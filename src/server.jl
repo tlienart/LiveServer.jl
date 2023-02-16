@@ -1,3 +1,10 @@
+# https://github.com/fonsp/Pluto.jl/blob/bedc7767d76439477bae8a5165f4f39906f9064c/src/notebook/path%20helpers.jl#L3-L8
+function detectwsl()
+    Sys.islinux() &&
+    isfile("/proc/sys/kernel/osrelease") &&
+    occursin(r"Microsoft|WSL"i, read("/proc/sys/kernel/osrelease", String))
+end
+
 """
     open_in_default_browser(url)
 
