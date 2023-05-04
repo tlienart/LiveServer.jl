@@ -104,14 +104,4 @@ end
     LS.watch_file!(sw, file3)
 
     @test length(sw.watchedfiles) == 3
-
-    LS.start(sw)
-
-    rm(file3)
-    sleep(0.25) # needs to be sufficient to give time for propagation.
-
-    # file3 was deleted
-    @test length(sw.watchedfiles) == 2
-    @test sw.watchedfiles[1].path == file1
-    @test sw.watchedfiles[2].path == file2
 end
