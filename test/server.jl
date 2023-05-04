@@ -161,8 +161,8 @@ end
     cd(mktempdir())
     write("test_file.html", "Hello!")
 
-    server = Sockets.listen(Sockets.localhost, 8002)
-    io = Sockets.connect(Sockets.localhost, 8002)
+    server = Sockets.listen(Sockets.localhost, 8001)
+    io = Sockets.connect(Sockets.localhost, 8001)
     key = "k5zQsAMXfFlvmWIE/YCiEg=="
     s = HTTP.Stream(
         HTTP.Request(
