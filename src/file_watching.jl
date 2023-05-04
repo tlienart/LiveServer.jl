@@ -189,8 +189,9 @@ end
 
 Checks whether the file specified by `f_path` is being watched.
 """
-is_watched(fw::FileWatcher, f_path::AbstractString) =
-    any(wf -> wf.path == f_path, fw.watchedfiles)
+function is_watched(fw::FileWatcher, f_path::AbstractString)
+    return any(wf -> wf.path == f_path, fw.watchedfiles)
+end
 
 
 """

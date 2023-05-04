@@ -341,6 +341,9 @@ function serve_file(
             deleted or renamed.
             """
         )
+        ret_code = 404
+    elseif case == :not_found_with_404
+        ret_code = 404
     elseif case == :dir_without_index
         index_page = get_dir_list(fs_path)
         return HTTP.Response(200, index_page)
@@ -472,6 +475,15 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket)::Nothing
     if case != :not_found_without_404
         add_to_viewers(fs_path, ws)
     end
+
+    # if DEBUG[]
+    #     for (k, v) in WS_VIEWERS
+    #         println("$k > $(length(v)) viewers")
+    #         for (i, vi) in enumerate(v)
+    #             println("  $i - $(vi.writeclosed)")
+    #         end
+    #     end
+    # end
 
     try
         # NOTE: browsers will drop idle websocket connections so this

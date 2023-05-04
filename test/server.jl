@@ -3,15 +3,17 @@
     bk = pwd()
     cd(joinpath(@__DIR__, ".."))
     req = "tmp"
-    @test LS.get_fs_path(req) == ""
+    @test LS.get_fs_path(req) == ("", :not_found_without_404)
+    req = "/test/dummies/foofile"
+    @test LS.get_fs_path(req) == ("test/dummies/foofile", :file)
     req = "/test/dummies/index.html"
-    @test LS.get_fs_path(req) == "test/dummies/index.html"
+    @test LS.get_fs_path(req) == ("test/dummies/index.html", :dir_with_index)
     req = "/test/dummies/r%C3%A9sum%C3%A9/"
-    @test LS.get_fs_path(req) == "test/dummies/résumé/index.html"
+    @test LS.get_fs_path(req) == ("test/dummies/résumé/index.html", :dir_with_index)
     req = "/test/dummies/"
-    @test LS.get_fs_path(req) == "test/dummies/index.html"
+    @test LS.get_fs_path(req) == ("test/dummies/index.html", :dir_with_index)
     req = "/test/dummies/?query=string"
-    @test LS.get_fs_path(req) == "test/dummies/index.html"
+    @test LS.get_fs_path(req) == ("test/dummies/index.html", :dir_with_index)
     cd(bk)
 end
 
@@ -71,7 +73,7 @@ tasks that you will try to start.
     # if one asks for something incorrect, a 404 should be returned
     response = HTTP.get("http://localhost:$port/no.html"; status_exception=false)
     @test response.status == 404
-    @test occursin("404: file not found.", String(response.body))
+    @test occursin("404 Not Found.", String(response.body))
     # test custom 404.html page
     mkdir("404"); write("404/index.html", "custom 404")
     response = HTTP.get("http://localhost:$port/no.html"; status_exception=false)
@@ -130,8 +132,8 @@ tasks that you will try to start.
     rm("css", recursive=true)
     rm("404", recursive=true)
     sleep(0.5)
-    # only index.html is still watched
-    @test length(fw.watchedfiles) == 1
+    # everything is still watched (#160)
+    @test length(fw.watchedfiles) == 4
 
     #
     # SHUTTING DOWN
@@ -159,8 +161,8 @@ end
     cd(mktempdir())
     write("test_file.html", "Hello!")
 
-    server = Sockets.listen(Sockets.localhost, 8001)
-    io = Sockets.connect(Sockets.localhost, 8001)
+    server = Sockets.listen(Sockets.localhost, 8002)
+    io = Sockets.connect(Sockets.localhost, 8002)
     key = "k5zQsAMXfFlvmWIE/YCiEg=="
     s = HTTP.Stream(
         HTTP.Request(
@@ -176,14 +178,14 @@ end
         HTTP.Connection(io)
     )
 
-    fs_path = LS.get_fs_path(s.message.target)
+    fs_path, _ = LS.get_fs_path(s.message.target)
     @test fs_path == "test_file.html"
 
     tsk = @async LS.HTTP.WebSockets.upgrade(LS.ws_tracker, s)
     sleep(1.0)
     # the websocket should have been added to the list
     @test LS.WS_VIEWERS[fs_path] isa Vector{HTTP.WebSockets.WebSocket}
-    @test length(LS.WS_VIEWERS[fs_path]) == 1
+    @test length(LS.WS_VIEWERS[fs_path]) >= 1
 
     # simulate a "good" closure (an event caused a write on the websocket and then closes it)
     ws = LS.WS_VIEWERS[fs_path][1]
