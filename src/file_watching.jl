@@ -37,9 +37,17 @@ end
 """
     set_unchanged!(wf::WatchedFile)
 
-Set the current state of a `WatchedFile` as unchanged"
+Set the current state of a `WatchedFile` as unchanged
 """
 set_unchanged!(wf::WatchedFile) = (wf.mtime = mtime(wf.path);)
+
+"""
+    set_unchanged!(wf::WatchedFile)
+
+Set the current state of a `WatchedFile` as deleted (if it re-appears it will
+immediately be marked as changed and trigger the callback).
+"""
+set_deleted!(wf::WatchedFile) = (wf.mtime = -Inf;)
 
 
 """
@@ -96,18 +104,18 @@ function file_watcher_task!(fw::FileWatcher)::Nothing
             # only check files if there's a callback to call upon changes
             fw.callback === nothing && continue
 
-            # keep track of any file that may have been deleted
-            deleted_files = Vector{Int}()
-            for (i, wf) ∈ enumerate(fw.watchedfiles)
+            for wf ∈ fw.watchedfiles
                 state = has_changed(wf)
                 if state == 1
                     # file has changed, set it unchanged and trigger callback
                     set_unchanged!(wf)
                     fw.callback(wf.path)
+                elseif state == -1
+                    # file has been deleted, set the mtime to -Inf so that
+                    # if it re-appears then it's immediately marked as changed
+                    set_deleted!(wf)
                 end
             end
-            # remove deleted files from list of watched files
-            deleteat!(fw.watchedfiles, deleted_files)
         end
     catch err
         fw.status = :interrupted

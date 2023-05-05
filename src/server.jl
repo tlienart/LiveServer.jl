@@ -336,9 +336,19 @@ function serve_file(
     if case == :not_found_without_404
         return HTTP.Response(404,
             """
-            404 Not Found. The requested URL [$(req.target)]. Perhaps you made 
-            a typo in the URL, or the URL corresponds to a file that has been
-            deleted or renamed.
+            <div style="width: 100%; max-width: 500px; margin: auto">
+            <h1 style="margin-top: 2em">404 Not Found</h1>
+            <p>
+              The requested URL [<code>$(req.target)</code>] does not correspond to a resource on the server.
+            </p>
+            <p>
+              Perhaps you made a typo in the URL, or the URL corresponds to a file that has been
+              deleted or renamed.
+            </p>
+            <p>
+              <a href="/">Home</a>
+            </p>
+            </div>
             """
         )
         ret_code = 404
