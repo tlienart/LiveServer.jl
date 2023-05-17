@@ -5,6 +5,7 @@ function detectwsl()
     occursin(r"Microsoft|WSL"i, read("/proc/sys/kernel/osrelease", String))
 end
 
+
 """
     open_in_default_browser(url)
 
@@ -26,10 +27,11 @@ function open_in_default_browser(url::AbstractString)::Bool
         else
             false
         end
-    catch ex
+    catch
         false
     end
 end
+
 
 """
     update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
@@ -39,15 +41,18 @@ send a message with data "update" to each of them (to trigger a page reload),
 then close the connection. Finally, empty the list since all connections are
 closing anyway and clients will re-connect from the re-loaded page.
 """
-function update_and_close_viewers!(wss::Vector{HTTP.WebSockets.WebSocket})
+function update_and_close_viewers!(
+            wss::Vector{HTTP.WebSockets.WebSocket}
+        )::Nothing
+
     ws_to_update_and_close = collect(wss)
     empty!(wss)
 
     # send update message to all viewers
-    @sync for wsi in ws_to_update_and_close
-        isopen(wsi.io) && @async begin
+    @sync for wsᵢ in ws_to_update_and_close
+        isopen(wsᵢ.io) && @async begin
             try
-                HTTP.WebSockets.send(wsi, "update")
+                HTTP.WebSockets.send(wsᵢ, "update")
             catch
             end
         end
@@ -75,7 +80,7 @@ end
 Function reacting to the change of the file at `f_path`. Is set as callback for
 the file watcher.
 """
-function file_changed_callback(f_path::AbstractString)
+function file_changed_callback(f_path::AbstractString)::Nothing
     if VERBOSE[]
         @info "[LiveServer]: Reacting to change in file '$f_path'..."
     end
@@ -95,58 +100,97 @@ end
 
 
 """
-    get_fs_path(req_path::AbstractString)
+    get_fs_path(req_path::AbstractString; silent=false)
 
 Return the filesystem path corresponding to a requested path, or an empty
 String if the file was not found.
 
-Cases:
-    * an explicit request to an existing `index.html` (e.g. `foo/bar/index.html`)
-        is given --> serve the page and change WEB_DIR unless a parent dir should
-        be preferred (e.g. foo/ has an index.html)
-    * an implicit request to an existing `index.html` (e.g. `foo/bar/` or `foo/bar`)
-        is given --> same as previous case after appending the `index.html`
-    * a request to a file is given (e.g. `/sample.jpeg`) --> figure out what it
-        is relative to, reconstruct the full system path and serve the file
-    * a request for a dir without index is given (e.g. `foo/bar`) --> serve a
+### Cases:
+* an explicit request to an existing `index.html` (e.g.
+    `foo/bar/index.html`) is given --> serve the page and change WEB_DIR
+    unless a parent dir should be preferred (e.g. foo/ has an index.html)
+* an implicit request to an existing `index.html` (e.g. `foo/bar/` or
+    `foo/bar`) is given --> same as previous case after appending the
+    `index.html`
+* a request to a file is given (e.g. `/sample.jpeg`) --> figure out what it
+    is relative to, reconstruct the full system path and serve the file
+* a request for a dir without index is given (e.g. `foo/bar`) --> serve a
         dedicated index file listing the content of the directory.
 """
-function get_fs_path(req_path::AbstractString)::String
+function get_fs_path(
+        req_path::AbstractString;
+        silent::Bool=false,
+        onlyfs::Bool=false
+    )
+    
     uri     = HTTP.URI(req_path)
     r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), '/'))
     fs_path = joinpath(CONTENT_DIR[], r_parts...)
 
-    resolved_fs_path = ""
+    onlyfs && return fs_path, :onlyfs
+
     cand_index = ifelse(
         r_parts[end] == "index.html",
         fs_path,
         joinpath(fs_path, "index.html")
     )
 
+    resolved_fs_path = ""
+    case             = :undecided
+
     if isfile(cand_index)
         resolved_fs_path = cand_index
+        case             = :dir_with_index
 
     elseif isfile(fs_path)
         resolved_fs_path = fs_path
+        case             = :file
 
     elseif isdir(fs_path)
         resolved_fs_path = joinpath(fs_path, "")
+        case             = :dir_without_index
+
+    elseif req_path == "/"
+        resolved_fs_path = "."
+        case             = :dir_without_index
+
+    else
+        for cand_404 in (
+            joinpath(CONTENT_DIR[], "404.html"),
+            joinpath(CONTENT_DIR[], "404", "index.html")
+        )
+            if isfile(cand_404)
+                resolved_fs_path = cand_404
+                case             = :not_found_with_404
+                break
+            end
+        end
+        if isempty(resolved_fs_path)
+            case = :not_found_without_404
+        end
 
     end
 
-    DEBUG[] && @info """
-        👀 RESOLVE (req: $req_path) 👀
-            fs_path:    $(fs_path) ($(resolved_fs_path))
-        """
-    return resolved_fs_path
+    if DEBUG[] && !silent
+        @info """
+            👀 PATH RESOLUTION
+                request:    < $req_path >
+                fs_path:    < $fs_path >
+                resolved:   < $resolved_fs_path >
+                case:       < $case >
+            """
+        println()
+    end
+    return resolved_fs_path, case
 end
+
 
 """
     lstrip_cdir(s)
 
 Discard the 'CONTENT_DIR' part (passed via `dir=...`) of a path.
 """
-function lstrip_cdir(s::AbstractString)
+function lstrip_cdir(s::AbstractString)::String
     # we can't easily do a regex match here because CONTENT_DIR may
     # contain regex characters such as `+` or `-`
     ss = string(s)
@@ -156,12 +200,13 @@ function lstrip_cdir(s::AbstractString)
     return string(lstrip(ss, ['/', '\\']))
 end
 
-"""
-    get_dir_list(dir::AbstractString) -> index_page::AbstractString
 
-Generate list of content at path `dir`.
 """
-function get_dir_list(dir::AbstractString)
+    get_dir_list(dir::AbstractString) -> index_page::String
+
+Generate a page which lists content at path `dir`.
+"""
+function get_dir_list(dir::AbstractString)::String
     list   = readdir(dir; join=true, sort=true)
     io     = IOBuffer()
     sdir   = dir
@@ -224,13 +269,16 @@ function get_dir_list(dir::AbstractString)
     write(io, """
             </ul>
             <hr>
-            <a href="https://github.com/tlienart/LiveServer.jl">💻 LiveServer.jl</a>
+            <a href="https://github.com/tlienart/LiveServer.jl">
+                💻 LiveServer.jl
+            </a>
           </body>
         </html>
         """
     )
     return String(take!(io))
 end
+
 
 """
     serve_file(fw, req::HTTP.Request; inject_browser_reload_script = true)
@@ -256,7 +304,8 @@ whether they're already watched or not. Finally the file is served via a 200
 and message is returned.
 """
 function serve_file(
-            fw, req::HTTP.Request;
+            fw::FileWatcher,
+            req::HTTP.Request;
             inject_browser_reload_script::Bool = true,
             allow_cors::Bool = false
         )::HTTP.Response
@@ -270,12 +319,7 @@ function serve_file(
     #            foo/bar?search --> foo/bar/?search
     #            foo/bar#anchor --> foo/bar/#anchor
     #
-    uri    = HTTP.URI(req.target)
-
-    DEBUG[] && @info """
-        REQUEST ($(req.target))
-            uri.path ($(uri.path))
-        """
+    uri = HTTP.URI(req.target)
 
     cand_dir = joinpath(CONTENT_DIR[], split(uri.path, '/')...)
     if !endswith(uri.path, "/") && isdir(cand_dir)
@@ -287,52 +331,41 @@ function serve_file(
     end
 
     ret_code = 200
-    fs_path  = get_fs_path(req.target)
+    fs_path, case = get_fs_path(req.target)
 
-    DEBUG[] && @info """
-        PATH RESOLUTION ($(req.target))
-            fs_path: $(fs_path) [$(ifelse(isempty(fs_path), "❌ ❌ ❌ ", ""))]
-        """
-
-    # if get_fs_path returns an empty string, there's two cases:
-    # 1. [CASE 3] the path is a directory without an `index.html` --> list dir
-    # 2. [CASE 4] otherwise serve a 404 (see if there's a dedicated 404 path,
-    if isempty(fs_path)
-
-        if req.target == "/"
-            index_page = get_dir_list(".")
-            return HTTP.Response(200, index_page)
-        end
-
+    if case == :not_found_without_404
+        return HTTP.Response(404,
+            """
+            <div style="width: 100%; max-width: 500px; margin: auto">
+            <h1 style="margin-top: 2em">404 Not Found</h1>
+            <p>
+              The requested URL [<code>$(req.target)</code>] does not correspond to a resource on the server.
+            </p>
+            <p>
+              Perhaps you made a typo in the URL, or the URL corresponds to a file that has been
+              deleted or renamed.
+            </p>
+            <p>
+              <a href="/">Home</a>
+            </p>
+            </div>
+            """
+        )
         ret_code = 404
-        # Check if /404/ or /404.html exists and serve that as a body
-        for f in ("/404/", "/404.html")
-            maybe_path = get_fs_path(f)
-            if !isempty(maybe_path)
-                fs_path = maybe_path
-                break
-            end
-        end
-
-        # If still not found a body, return a generic error message
-        if isempty(fs_path)
-            return HTTP.Response(404, """
-                404: file not found. Perhaps you made a typo in the URL,
-                or the requested file has been deleted or renamed.
-                """
-            )
-        end
-    end
-
-    # [CASE 2]
-    if isdir(fs_path)
+    elseif case == :not_found_with_404
+        ret_code = 404
+    elseif case == :dir_without_index
         index_page = get_dir_list(fs_path)
         return HTTP.Response(200, index_page)
     end
 
+    #
     # In what follows, fs_path points to a file
-    # --> [CASE 1a] html-like: try to inject reload-script
-    # --> [CASE 1b] other: just get the browser to show it
+    # :dir_with_index
+    # :file
+    # :not_found_with_404
+    # --> html-like: try to inject reload-script
+    # --> other: just get the browser to show it
     #
     ext     = lstrip(last(splitext(fs_path)), '.') |> string
     content = read(fs_path, String)
@@ -380,22 +413,26 @@ function serve_file(
             io = IOBuffer()
             write(io, SubString(content, 1:end_body))
             write(io, BROWSER_RELOAD_SCRIPT)
-            write(io, SubString(content, nextind(content, end_body):lastindex(content)))
+            content_from = nextind(content, end_body)
+            content_to   = lastindex(content)
+            write(io, SubString(content, content_from:content_to))
             content = take!(io)
         end
     end
     
     range_match = match(r"bytes=(\d+)-(\d+)" , HTTP.header(req, "Range", ""))
     is_ranged = !isnothing(range_match)
-    
 
     headers = [
         "Content-Type" => content_type,
     ]
     if is_ranged
         range = parse.(Int, range_match.captures)
-        push!(headers, "Content-Range" => "bytes $(range[1])-$(range[2])/$(binary_length(content))")
-        content = @view content[1+range[1]:1+range[2]]
+        push!(headers,
+            "Content-Range" =>
+            "bytes $(range[1])-$(range[2])/$(binary_length(content))"
+        )
+        content  = @view content[1+range[1]:1+range[2]]
         ret_code = 206
     end
     if allow_cors
@@ -416,27 +453,50 @@ binary_length(s::AbstractString) = ncodeunits(s)
 binary_length(s::AbstractVector{UInt8}) = length(s)
 
 
+function add_to_viewers(fs_path, ws)
+    if haskey(WS_VIEWERS, fs_path)
+        push!(WS_VIEWERS[fs_path], ws)
+    else
+        WS_VIEWERS[fs_path] = [ws]
+    end
+    return
+end
+
+
 """
     ws_tracker(ws::HTTP.WebSockets.WebSocket, target::AbstractString)
 
 Adds the websocket connection to the viewers in the global dictionary
 `WS_VIEWERS` to the entry corresponding to the targeted file.
 """
-function ws_tracker(ws::HTTP.WebSockets.WebSocket)
-    # NOTE: this file always exists because the query is
-    # generated just after serving it
-    fs_path = get_fs_path(ws.request.target)
+function ws_tracker(ws::HTTP.WebSockets.WebSocket)::Nothing
+    # NOTE: unless we're in the case of a 404, this file always exists because
+    # the query is generated just after serving it; the 404 case will return an
+    # empty path.
+    fs_path, case = get_fs_path(ws.request.target, silent=true)
+
+    if case in (:not_found_with_404, :not_found_without_404)
+        raw_fs_path, _ = get_fs_path(ws.request.target, onlyfs=true)
+        add_to_viewers(raw_fs_path, ws)
+    end
 
     # add to list of html files being "watched" if the file is already being
     # viewed, add ws to it (e.g. several tabs) otherwise add to dict
-    if haskey(WS_VIEWERS, fs_path)
-        push!(WS_VIEWERS[fs_path], ws)
-    else
-        WS_VIEWERS[fs_path] = [ws]
+    if case != :not_found_without_404
+        add_to_viewers(fs_path, ws)
     end
 
+    # if DEBUG[]
+    #     for (k, v) in WS_VIEWERS
+    #         println("$k > $(length(v)) viewers")
+    #         for (i, vi) in enumerate(v)
+    #             println("  $i - $(vi.writeclosed)")
+    #         end
+    #     end
+    # end
+
     try
-        # NOTE: browsers will drop idle websocket connections so this effectively
+        # NOTE: browsers will drop idle websocket connections so this
         # forces the websocket to stay open until it's closed by LiveServer (and
         # not by the browser) upon writing a `update` message on the websocket.
         # See update_and_close_viewers
@@ -444,15 +504,16 @@ function ws_tracker(ws::HTTP.WebSockets.WebSocket)
             sleep(0.1)
         end
     catch err
-        # NOTE: there may be several sources of errors caused by the precise moment
-        # at which the user presses CTRL+C and after what events. In an ideal world
-        # we would check that none of these errors have another source but for now
-        # we make the assumption it's always the case (note that it can cause other
-        # errors than InterruptException, for instance it can cause errors due to
-        # stream not being available etc but these all have the same source).
-        # - We therefore do not propagate the error but merely store the information
-        # that there was a forcible interruption of the websocket so that the
-        # interruption can be guaranteed to be propagated.
+        # NOTE: there may be several sources of errors caused by the precise
+        # moment at which the user presses CTRL+C and after what events. In an
+        # ideal world we would check that none of these errors have another
+        # source but for now we make the assumption it's always the case (note
+        # that it can cause other errors than InterruptException, for instance
+        # it can cause errors due to stream not being available etc but these
+        # all have the same source).
+        # - We therefore do not propagate the error but merely store the
+        # information that there was a forcible interruption of the websocket
+        # so that the interruption can be guaranteed to be propagated.
         WS_INTERRUPT[] = true
     end
     return nothing
@@ -462,33 +523,31 @@ end
 """
     serve(filewatcher; ...)
 
-Main function to start a server at `http://host:port` and render what is in the current
-directory. (See also [`example`](@ref) for an example folder).
+Main function to start a server at `http://host:port` and render what is in the
+current directory. (See also [`example`](@ref) for an example folder).
 
 # Arguments
 
-    `filewatcher`: a file watcher implementing the API described for
-                    [`SimpleWatcher`](@ref) (which also is the default) and
-                    messaging the viewers (via WebSockets) upon detecting file
-                    changes.
-    `port`: integer between 8000 (default) and 9000.
-    `dir`: string specifying where to launch the server if not the current
+- `filewatcher`: a file watcher implementing the API described for
+        [`SimpleWatcher`](@ref) (which also is the default) messaging the viewers
+        (via WebSockets) upon detecting file changes.
+- `port`: integer between 8000 (default) and 9000.
+- `dir`: string specifying where to launch the server if not the current
         working directory.
-    `verbose`: boolean switch to make the server print information about file
-                changes and connections.
-    `debug`: bolean switch to make the server print debug messages.
-    `coreloopfun`: function which can be run every 0.1 second while the
-                    liveserver is running; it takes two arguments: the cycle
-                    counter and the filewatcher. By default the coreloop does
-                    nothing.
-    `launch_browser`: boolean specifying whether to launch the ambient browser
-                       at the localhost or not (default: false).
-    `allow_cors`: boolean allowing cross origin (CORS) requests to access the
-                   server via the "Access-Control-Allow-Origin" header.
-    `preprocess_request`: function specifying the transformation of a request
-                           before it is returned; its only argument is the
-                           current request.
- # Example
+- `debug`: bolean switch to make the server print debug messages.
+- `verbose`: boolean switch to make the server print information about file
+        changes and connections.
+- `coreloopfun`: function which can be run every 0.1 second while the
+        server is running; it takes two arguments: the cycle counter and the
+        filewatcher. By default the coreloop does nothing.
+- `launch_browser`: boolean specifying whether to launch the ambient browser
+        at the localhost or not (default: false).
+`allow_cors`: boolean allowing cross origin (CORS) requests to access the
+        server via the "Access-Control-Allow-Origin" header.
+`preprocess_request`: function specifying the transformation of a request
+        before it is returned; its only argument is the current request.
+
+# Example
 
  ```julia
  LiveServer.example()
@@ -500,19 +559,19 @@ directory. (See also [`example`](@ref) for an example folder).
  page and show the changes.
  """
  function serve(
-             fw::FileWatcher=SimpleWatcher(file_changed_callback);
-             # kwargs
-             host::String = "127.0.0.1",
-             port::Int = 8000,
-             dir::AbstractString = "",
-             verbose::Bool = false,
-             debug::Bool = false,
-             coreloopfun::Function = (c, fw)->nothing,
-             preprocess_request::Function = identity,
-             inject_browser_reload_script::Bool = true,
-             launch_browser::Bool = false,
-             allow_cors::Bool = false
-         )::Nothing
+            fw::FileWatcher=SimpleWatcher(file_changed_callback);
+            # kwargs
+            host::String = "127.0.0.1",
+            port::Int = 8000,
+            dir::AbstractString = "",
+            debug::Bool = false,
+            verbose::Bool = debug,
+            coreloopfun::Function = (c, fw)->nothing,
+            preprocess_request::Function = identity,
+            inject_browser_reload_script::Bool = true,
+            launch_browser::Bool = false,
+            allow_cors::Bool = false
+        )::Nothing
 
     8000 ≤ port ≤ 9000 || throw(
         ArgumentError("The port must be between 8000 and 9000.")
@@ -527,6 +586,7 @@ directory. (See also [`example`](@ref) for an example folder).
         set_content_dir(dir)
     end
 
+    # starts the file watcher
     start(fw)
 
     # make request handler
@@ -556,7 +616,8 @@ directory. (See also [`example`](@ref) for an example folder).
                 # the websocket handling or during the file watching)
                 throw(InterruptException())
             end
-            # do the auxiliary function if there is one (by default this does nothing)
+            # run the auxiliary function if there is one (by default this does
+            # nothing)
             coreloopfun(counter, fw)
             # update the cycle counter and sleep (yields to other threads)
             counter += 1
@@ -598,10 +659,22 @@ directory. (See also [`example`](@ref) for an example folder).
     return nothing
 end
 
-function get_server(host, port, req_handler; incr=0)
-    if incr >= 10
-        @error "couldn't find a free port in $incr tries"
-    end
+
+"""
+    get_server(host, port, req_handler; incr=0)
+
+Helper function to return a server, if the server is already occupied, try
+incrementing the port until a free one is found (after a few tries an error
+is thrown).
+"""
+function get_server(
+            host,
+            port,
+            req_handler;
+            incr::Int = 0
+        )
+
+    incr >= 10 && @error "couldn't find a free port in $incr tries"
     try
         server = HTTP.listen!(host, port; readtimeout=0) do http::HTTP.Stream
             if HTTP.WebSockets.isupgrade(http.message)
@@ -614,7 +687,7 @@ function get_server(host, port, req_handler; incr=0)
             end
         end
         return server, port
-    catch IOError
+    catch
         return get_server(host, port+1, req_handler; incr=incr+1)
     end
 end
