@@ -122,7 +122,7 @@ function get_fs_path(
         silent::Bool=false,
         onlyfs::Bool=false
     )
-    
+
     uri     = HTTP.URI(req_path)
     r_parts = HTTP.URIs.unescapeuri.(split(lstrip(uri.path, '/'), '/'))
     fs_path = joinpath(CONTENT_DIR[], r_parts...)
@@ -208,74 +208,88 @@ Generate a page which lists content at path `dir`.
 """
 function get_dir_list(dir::AbstractString)::String
     list   = readdir(dir; join=true, sort=true)
-    io     = IOBuffer()
     sdir   = dir
     cdir   = CONTENT_DIR[]
     if !isempty(cdir)
         sdir = join([cdir, lstrip_cdir(dir)], "/")
     end
-
-    write(io, """
-        <!DOCTYPE HTML>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss">
-            <title>Directory listing</title>
-            <style>
-              a {text-decoration: none;}
-            </style>
-          </head>
-          <body>
+    pagehtml(title="Directory listing") do io
+        write(io, """
             <h1 style='margin-top: 1em;'>
-              Directory listing
+                Directory listing
             </h1>
             <h3>
-               <a href="/" alt="root">🏠</a>
-               <a href="/$(dirname(dir))" alt="parent dir">⬆️</a>
-               &nbsp; path: <code style='color:gray;'>$(sdir)</code>
-             </h3>
+                <a href="/" alt="root">🏠</a>
+                <a href="/$(dirname(dir))" alt="parent dir">⬆️</a>
+                &nbsp; path: <code style='color:gray;'>$(sdir)</code>
+                </h3>
 
             <hr>
             <ul>
-        """
-    )
+            """
+        )
 
-    list_files = [f for f in list if isfile(f)]
-    list_dirs  = [d for d in list if d ∉ list_files]
+        list_files = [f for f in list if isfile(f)]
+        list_dirs  = [d for d in list if d ∉ list_files]
 
-    for fname in list_files
-        link  = lstrip_cdir(fname)
-        name  = splitdir(fname)[end]
-        post  = ifelse(islink(fname), " @", "")
+        for fname in list_files
+            link  = lstrip_cdir(fname)
+            name  = splitdir(fname)[end]
+            post  = ifelse(islink(fname), " @", "")
+            write(io, """
+                <li><a href="/$(link)">$(name)$(post)</a></li>
+                """
+            )
+        end
+        for fdir in list_dirs
+            link  = lstrip_cdir(fdir)
+            # ensure ends with slash, see #135
+            link *= ifelse(endswith(link, "/"), "", "/")
+            name  = splitdir(fdir)[end]
+            pre   = "📂 "
+            post  = ifelse(islink(fdir), " @", "")
+            write(io, """
+                <li><a href="/$(link)">$(pre)$(name)$(post)</a></li>
+                """
+            )
+        end
         write(io, """
-            <li><a href="/$(link)">$(name)$(post)</a></li>
+                </ul>
+                <hr>
+                <a href="https://github.com/tlienart/LiveServer.jl">
+                    💻 LiveServer.jl
+                </a>
+            </body>
+            </html>
             """
         )
     end
-    for fdir in list_dirs
-        link  = lstrip_cdir(fdir)
-        # ensure ends with slash, see #135
-        link *= ifelse(endswith(link, "/"), "", "/")
-        name  = splitdir(fdir)[end]
-        pre   = "📂 "
-        post  = ifelse(islink(fdir), " @", "")
-        write(io, """
-            <li><a href="/$(link)">$(pre)$(name)$(post)</a></li>
-            """
-        )
-    end
+end
+
+function pagehtml(f::Base.Callable; title::AbstractString)
+    io = IOBuffer()
+    # Construct the shared head part of the HTML
     write(io, """
-            </ul>
-            <hr>
-            <a href="https://github.com/tlienart/LiveServer.jl">
-                💻 LiveServer.jl
-            </a>
-          </body>
-        </html>
-        """
-    )
+    <!DOCTYPE HTML>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss">
+        <title>$(title)</title>
+        <style>
+          a {text-decoration: none;}
+        </style>
+      </head>
+      <body>
+    """)
+    # Write the page-specific HTML (should only write the _contents_ of <body>...</body> tag)
+    f(io)
+    # Write the shared footer
+    write(io, """
+      </body>
+    </html>
+    """)
     return String(take!(io))
 end
 
@@ -334,24 +348,25 @@ function serve_file(
     fs_path, case = get_fs_path(req.target)
 
     if case == :not_found_without_404
-        return HTTP.Response(404,
-            """
-            <div style="width: 100%; max-width: 500px; margin: auto">
-            <h1 style="margin-top: 2em">404 Not Found</h1>
-            <p>
-              The requested URL [<code>$(req.target)</code>] does not correspond to a resource on the server.
-            </p>
-            <p>
-              Perhaps you made a typo in the URL, or the URL corresponds to a file that has been
-              deleted or renamed.
-            </p>
-            <p>
-              <a href="/">Home</a>
-            </p>
-            </div>
-            """
-        )
-        ret_code = 404
+        html_404 = pagehtml(title = "404 Not Found") do io
+            write(io, """
+                <div style="width: 100%; max-width: 500px; margin: auto">
+                <h1 style="margin-top: 2em">404 Not Found</h1>
+                <p>
+                The requested URL [<code>$(req.target)</code>] does not correspond to a resource on the server.
+                </p>
+                <p>
+                Perhaps you made a typo in the URL, or the URL corresponds to a file that has been
+                deleted or renamed.
+                </p>
+                <p>
+                <a href="/">Home</a>
+                </p>
+                </div>
+                """
+            )
+        end
+        return HTTP.Response(404, html_404)
     elseif case == :not_found_with_404
         ret_code = 404
     elseif case == :dir_without_index
@@ -419,7 +434,7 @@ function serve_file(
             content = take!(io)
         end
     end
-    
+
     range_match = match(r"bytes=(\d+)-(\d+)" , HTTP.header(req, "Range", ""))
     is_ranged = !isnothing(range_match)
 
