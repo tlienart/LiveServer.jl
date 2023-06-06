@@ -270,26 +270,28 @@ function pagehtml(f::Base.Callable; title::AbstractString)
     io = IOBuffer()
     # Construct the shared head part of the HTML
     write(io, """
-    <!DOCTYPE HTML>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss">
-        <title>$(title)</title>
-        <style>
-          a {text-decoration: none;}
-        </style>
-      </head>
-      <body>
-    """)
+        <!DOCTYPE HTML>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/spcss">
+            <title>$(title)</title>
+            <style>
+              a {text-decoration: none;}
+            </style>
+          </head>
+        <body>
+        """
+    )
     # Write the page-specific HTML (should only write the _contents_ of <body>...</body> tag)
     f(io)
     # Write the shared footer
     write(io, """
-      </body>
-    </html>
-    """)
+          </body>
+        </html>
+        """
+    )
     return String(take!(io))
 end
 
