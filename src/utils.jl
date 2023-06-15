@@ -24,24 +24,28 @@ function servedocs_callback!(
             skip_dirs::Vector{String},
             skip_files::Vector{String},
             include_dirs::Vector{String},
+            include_files::Vector{String},
             foldername::String,
             buildfoldername::String)
     # ignore things happening in the build folder (generated files etc)
     startswith(fp, joinpath(foldername, buildfoldername)) && return nothing
-    # ignore files skip_dirs and skip_files
-    for dir in skip_dirs
-         startswith(fp, dir) && return nothing
-     end
-     for file in skip_files
-         fp == file && return nothing
-     end
+
+    # ignore files in skip_dirs and skip_files (unless the file is in include_files)
+    if !(fp in include_files)
+        for dir in skip_dirs
+            startswith(fp, dir) && return nothing
+        end
+        for file in skip_files
+            fp == file && return nothing
+        end
+    end
 
     # if the file that was changed is the `make.jl` file, assume that maybe
     # new files have been generated and so refresh the vector of watched files
     if fp == path2makejl
         # it's easier to start from scratch (takes negligible time)
         empty!(dw.watchedfiles)
-        scan_docs!(dw, foldername, path2makejl, literate, include_dirs)
+        scan_docs!(dw, foldername, path2makejl, literate, include_dirs, include_files)
     end
 
     # Run a Documenter pass
@@ -65,6 +69,7 @@ function scan_docs!(dw::SimpleWatcher,
                     path2makejl::String,
                     literate::Union{Nothing,String},
                     include_dirs::Vector{String},
+                    include_files::Vector{String},
                     )::Nothing
     # Typical expected structure:
     #   docs
@@ -94,6 +99,11 @@ function scan_docs!(dw::SimpleWatcher,
         for (root, _, files) in walkdir(idir), file in files
             push!(dw.watchedfiles, WatchedFile(joinpath(root, file)))
         end
+    end
+
+    # include all user-specified files
+    for f in filter(isfile, include_files)
+        push!(dw.watchedfiles, WatchedFile(f))
     end
 
     # if the user is not using Literate, return early
@@ -185,6 +195,9 @@ subfolder `docs`.
 * `skip_files=[]`: a vector of files that should not trigger regeneration.
 * `include_dirs=[]`: extra source directories to watch
                      (in addition to `joinpath(foldername, "src")`).
+* `include_files=[]`: extra source files to watch. Takes precedence over
+                      `skip_dirs` so can e.g. be used to track individual
+                      files in an otherwise skipped directory.
 * `foldername="docs"`: specify a different path for the content.
 * `buildfoldername="build"`: specify a different path for the build.
 * `makejl="make.jl"`: path of the script generating the documentation relative
@@ -203,6 +216,7 @@ function servedocs(;
             skip_dirs::Vector{String}=String[],
             skip_files::Vector{String}=String[],
             include_dirs::Vector{String}=String[],
+            include_files::Vector{String}=String[],
             foldername::String="docs",
             buildfoldername::String="build",
             makejl::String="make.jl",
@@ -217,6 +231,7 @@ function servedocs(;
     skip_dirs = abspath.(skip_dirs)
     skip_files = abspath.(skip_files)
     include_dirs = abspath.(include_dirs)
+    include_files = abspath.(include_files)
 
     path2makejl = joinpath(foldername, makejl)
 
@@ -227,12 +242,12 @@ function servedocs(;
         docwatcher,
         fp -> servedocs_callback!(
                 docwatcher, fp, path2makejl,
-                literate, skip_dirs, skip_files, include_dirs, foldername, buildfoldername
+                literate, skip_dirs, skip_files, include_dirs, include_files, foldername, buildfoldername
         )
     )
 
     # Scan the folder and update the list of files to watch
-    scan_docs!(docwatcher, foldername, path2makejl, literate, include_dirs)
+    scan_docs!(docwatcher, foldername, path2makejl, literate, include_dirs, include_files)
 
     # activate the doc environment if required
     doc_env && Pkg.activate(joinpath(foldername, "Project.toml"))

@@ -23,7 +23,7 @@
     include(abspath(makejl))
     @test readmake() == 1
 
-    def = (nothing, String[], String[], String[], "docs", "build")
+    def = (nothing, String[], String[], String[], String[], "docs", "build")
 
     # callback function
     dw = LS.SimpleWatcher()
@@ -60,7 +60,7 @@ end
     # error if there's no docs/ folder
     cray = Crayon(foreground=:cyan, bold=true)
     println(cray, "\n⚠ Deliberately causing an error to be displayed and handled...\n")
-    @test_throws ErrorException LS.scan_docs!(dw, "docs", "", "", String[])
+    @test_throws ErrorException LS.scan_docs!(dw, "docs", "", "", String[], String[])
 
     empty!(dw.watchedfiles)
 
@@ -70,19 +70,23 @@ end
     write(joinpath("docs", "src", "index2.md"), "Random file")
     write(joinpath("docs", "make.jl"), "1+1")
 
-    mkdir("extrasrc")
-    write(joinpath("extrasrc", "extra.md"), "Extra source file")
+    mkdir("extradir")
+    write(joinpath("extradir", "extra.md"), "Extra source file")
+
+    mkdir("extradir2")
+    write(joinpath("extradir2", "extra2.md"), "Extra source file 2")
 
     mkdir(joinpath("docs", "lit"))
     write(joinpath("docs", "lit", "index.jl"), "1+1")
 
-    LS.scan_docs!(dw, "docs", "docs/make.jl", joinpath("docs", "lit"), [abspath("extrasrc")])
+    LS.scan_docs!(dw, "docs", "docs/make.jl", joinpath("docs", "lit"), [abspath("extradir")], [abspath("extradir2", "extra2.md")])
 
-    @test length(dw.watchedfiles) == 4 # index.jl, index2.md, make.jl, extra.md
+    @test length(dw.watchedfiles) == 5 # index.jl, index2.md, make.jl, extra.md, extra2.md
     @test endswith(dw.watchedfiles[1].path, "make.jl")
     @test endswith(dw.watchedfiles[2].path, "index2.md")
     @test endswith(dw.watchedfiles[3].path, "extra.md")
-    @test endswith(dw.watchedfiles[4].path, "index.jl")
+    @test endswith(dw.watchedfiles[4].path, "extra2.md")
+    @test endswith(dw.watchedfiles[5].path, "index.jl")
 
     cd(bk)
 end
@@ -111,7 +115,7 @@ end
     # callback function
     dw = LS.SimpleWatcher()
 
-    LS.servedocs_callback!(dw, makejl, makejl, "", String[], String[], String[], "site", "build")
+    LS.servedocs_callback!(dw, makejl, makejl, "", String[], String[], String[], String[], "site", "build")
 
     @test length(dw.watchedfiles) == 3
     @test dw.watchedfiles[1].path == joinpath("site", "make.jl")
@@ -122,14 +126,14 @@ end
 
     # let's now remove `index2.md`
     rm(joinpath("site", "src", "index2.md"))
-    LS.servedocs_callback!(dw, makejl, makejl, "", String[], String[], String[], "site", "build")
+    LS.servedocs_callback!(dw, makejl, makejl, "", String[], String[], String[], String[], "site", "build")
 
     # the file has been removed
     @test length(dw.watchedfiles) == 2
     @test readmake() == 3
 
     # let's check there's an appropriate trigger for index
-    LS.servedocs_callback!(dw, joinpath("site", "src", "index.md"), makejl, "", String[], String[], String[], "site", "build")
+    LS.servedocs_callback!(dw, joinpath("site", "src", "index.md"), makejl, "", String[], String[], String[], String[], "site", "build")
     @test length(dw.watchedfiles) == 2
     @test readmake() == 4
 
@@ -144,7 +148,7 @@ end
     # error if there's no docs/ folder
     cray = Crayon(foreground=:cyan, bold=true)
     println(cray, "\n⚠ Deliberately causing an error to be displayed and handled...\n")
-    @test_throws ErrorException LS.scan_docs!(dw, "site", "site", "", String[])
+    @test_throws ErrorException LS.scan_docs!(dw, "site", "site", "", String[], String[])
 
     empty!(dw.watchedfiles)
 
@@ -157,7 +161,7 @@ end
     mkdir(joinpath("site", "lit"))
     write(joinpath("site", "lit", "index.jl"), "1+1")
 
-    LS.scan_docs!(dw, "site", "site/make.jl", joinpath("site", "lit"), String[])
+    LS.scan_docs!(dw, "site", "site/make.jl", joinpath("site", "lit"), String[], String[])
 
     @test length(dw.watchedfiles) == 3 # index.jl, index2.md, make.jl
     @test endswith(dw.watchedfiles[1].path, "make.jl")
