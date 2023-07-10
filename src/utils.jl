@@ -180,24 +180,13 @@ subfolder `docs`.
 * `doc_env=false`: a boolean switch to make the server start by activating the
 doc environment or not (i.e. the `Project.toml` in `docs/`).
 * `literate=nothing`: see `literate_dir`.
-* `literate_dir=nothing`: Path to a directory containing Literate scripts. If
-                          `nothing`, it's assumed there are no such scripts.
-                          Any `*.jl` file in the folder (or subfolders) is
-                          checked for changes and is assumed to generate a
-                          `*.md` file with the same name, in the same location.
-                          It is necessary to indicate this path to avoid a
-                          recursive trigger loop where the generated `*.md` file
-                          triggers, causing the literate script to be
-                          re-evaluated which, in turn, re-generates the `*.md`
-                          file.
-                          If the generated `*.md` file are in fact not located
-                          in the same location as their source `*.jl` file, 
-                          then the user must indicate that these `*.md` files
-                          should be ignored (should not trigger) by using
-                          `skip_dir` or `skip_files`.
-* `skip_dir=""`: a subpath of `docs/` where modifications should not trigger
-                 the generation of the docs, this is useful for instance if
-                 you're using Weave and Weave generates some files in
+* `literate_dir=nothing`: Path to a directory containing Literate scripts if
+                          these are not simply under `docs/src`. 
+                          See also the docs for information about how to
+                          work with Literate.
+* `skip_dir=""`: a path starting with `docs/` where modifications should not
+                 trigger the generation of the docs, this is useful for instance
+                 if you're using Weave and Weave generates some files in
                  `docs/src/examples` in which case you should set
                  `skip_dir=joinpath("docs","src","examples")`.
 * `skip_dirs=[]`: same as `skip_dir` but for a list of such dirs. Takes
@@ -239,6 +228,7 @@ function servedocs(;
     if isempty(skip_dirs) && !isempty(skip_dir)
         skip_dirs = [skip_dir]
     end
+    push!(skip_dirs, joinpath("docs", "build"))
     skip_dirs     = abspath.(skip_dirs)
     skip_files    = abspath.(skip_files)
     include_dirs  = abspath.(include_dirs)
@@ -248,8 +238,11 @@ function servedocs(;
     if isnothing(literate_dir) && !isnothing(literate)
         literate_dir = literate
     end
+    if !isnothing(literate_dir)
+        literate_dir = abspath(literate_dir)
+    end
 
-    path2makejl = joinpath(foldername, makejl)
+    path2makejl  = joinpath(foldername, makejl)
 
     # The file watcher is a default SimpleWatcher with a custom
     # callback
@@ -257,7 +250,7 @@ function servedocs(;
     set_callback!(
         docwatcher,
         fp -> servedocs_callback!(
-                docwatcher, fp, path2makejl,
+                docwatcher, abspath(fp), path2makejl,
                 literate_dir,
                 skip_dirs, skip_files, include_dirs, include_files,
                 foldername, buildfoldername
