@@ -257,7 +257,7 @@ function servedocs(;
     set_callback!(
         docwatcher,
         fp -> servedocs_callback!(
-                docwatcher, fp, path2makejl,
+                docwatcher, abspath(fp), path2makejl,
                 literate_dir,
                 skip_dirs, skip_files, include_dirs, include_files,
                 foldername, buildfoldername
