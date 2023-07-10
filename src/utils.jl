@@ -177,14 +177,24 @@ subfolder `docs`.
 
 * `verbose=false`: boolean switch to make the server print information about
                    file changes and connections.
-* `literate=nothing`: path to the folder containing the literate scripts; if
-                      nothing then it's assumed there's no literate script. If
-                      left empty, it's assumed that the literate scripts are in
-                      `docs/src`. Any `xxx.jl` file in the literate location is
-                      assumed to generate a `xxx.md` file which will not be
-                      watched to avoid ∞ loop.
 * `doc_env=false`: a boolean switch to make the server start by activating the
-                   doc environment or not (i.e. the `Project.toml` in `docs/`).
+doc environment or not (i.e. the `Project.toml` in `docs/`).
+* `literate=nothing`: see `literate_dir`.
+* `literate_dir=nothing`: Path to a directory containing Literate scripts. If
+                          `nothing`, it's assumed there are no such scripts.
+                          Any `*.jl` file in the folder (or subfolders) is
+                          checked for changes and is assumed to generate a
+                          `*.md` file with the same name, in the same location.
+                          It is necessary to indicate this path to avoid a
+                          recursive trigger loop where the generated `*.md` file
+                          triggers, causing the literate script to be
+                          re-evaluated which, in turn, re-generates the `*.md`
+                          file.
+                          If the generated `*.md` file are in fact not located
+                          in the same location as their source `*.jl` file, 
+                          then the user must indicate that these `*.md` files
+                          should be ignored (should not trigger) by using
+                          `skip_dir` or `skip_files`.
 * `skip_dir=""`: a subpath of `docs/` where modifications should not trigger
                  the generation of the docs, this is useful for instance if
                  you're using Weave and Weave generates some files in
@@ -210,8 +220,9 @@ subfolder `docs`.
 function servedocs(;
             verbose::Bool=false,
             debug::Bool=false,
-            literate::Union{Nothing,String}=nothing,
             doc_env::Bool=false,
+            literate::Union{Nothing,String}=nothing,
+            literate_dir::Union{Nothing,String}=literate,
             skip_dir::String="",
             skip_dirs::Vector{String}=String[],
             skip_files::Vector{String}=String[],
@@ -228,10 +239,15 @@ function servedocs(;
     if isempty(skip_dirs) && !isempty(skip_dir)
         skip_dirs = [skip_dir]
     end
-    skip_dirs = abspath.(skip_dirs)
-    skip_files = abspath.(skip_files)
-    include_dirs = abspath.(include_dirs)
+    skip_dirs     = abspath.(skip_dirs)
+    skip_files    = abspath.(skip_files)
+    include_dirs  = abspath.(include_dirs)
     include_files = abspath.(include_files)
+
+    # literate_dir takes precedence over literate
+    if isnothing(literate_dir) && !isnothing(literate)
+        literate_dir = literate
+    end
 
     path2makejl = joinpath(foldername, makejl)
 
@@ -242,12 +258,17 @@ function servedocs(;
         docwatcher,
         fp -> servedocs_callback!(
                 docwatcher, fp, path2makejl,
-                literate, skip_dirs, skip_files, include_dirs, include_files, foldername, buildfoldername
+                literate_dir,
+                skip_dirs, skip_files, include_dirs, include_files,
+                foldername, buildfoldername
         )
     )
 
     # Scan the folder and update the list of files to watch
-    scan_docs!(docwatcher, foldername, path2makejl, literate, include_dirs, include_files)
+    scan_docs!(
+        docwatcher, foldername, path2makejl,
+        literate_dir, include_dirs, include_files
+    )
 
     # activate the doc environment if required
     doc_env && Pkg.activate(joinpath(foldername, "Project.toml"))
