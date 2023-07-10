@@ -41,7 +41,7 @@ docs
 The only thing you have to do in this case is to specify to `servedocs` where the "literate folder" is; this is a keyword argument and for the example above we would have:
 
 ```julia
-servedocs(literate=joinpath("docs", "lit"))
+servedocs(literate_dir=joinpath("docs", "lit"))
 ```
 
 ### Modifying the make file
@@ -90,7 +90,7 @@ To experiment, do:
 julia> using LiveServer
 julia> LiveServer.servedocs_literate_example("test_dir")
 julia> cd("test_dir")
-julia> servedocs(literate=joinpath("docs", "literate"))
+julia> servedocs(literate_dir=joinpath("docs", "literate"))
 ```
 
 if you then navigate to `localhost:8000` you should end up with
