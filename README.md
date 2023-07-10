@@ -2,6 +2,8 @@
 
 [![CI Actions Status](https://github.com/tlienart/LiveServer.jl/workflows/CI/badge.svg)](https://github.com/tlienart/LiveServer.jl/actions)
 [![codecov](https://codecov.io/gh/tlienart/LiveServer.jl/branch/master/graph/badge.svg?token=mNry6r2aIn)](https://codecov.io/gh/tlienart/LiveServer.jl)
+[![docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://tlienart.github.io/LiveServer.jl/dev/)
+
 
 This is a simple and lightweight development web-server written in Julia,
 based on [HTTP.jl](https://github.com/JuliaWeb/HTTP.jl).
