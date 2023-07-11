@@ -82,7 +82,7 @@ To avoid this, you must generally call `servedocs` as follows when working with 
 
 ```
 servedocs(
-    literate_dir = LITERATE_INPUT
+    literate_dir = LITERATE_INPUT,
     skip_dir = LITERATE_OUTPUT
 )
 ```
