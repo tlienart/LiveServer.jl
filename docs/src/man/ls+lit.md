@@ -24,11 +24,11 @@ julia> servedocs(literate_dir=joinpath("docs", "literate"))
 
 if you then navigate to `localhost:8000` you should end up with
 
-![](/assets/testlit.png)
+![](../../assets/testlit.png)
 
 if you modify `test_dir/docs/literate/man/pg1.jl` for instance writing `f(4)` it will be applied directly:
 
-![](/assets/testlit2.png)
+![](../../assets/testlit2.png)
 
 
 In the explanations below we assume you have defined
