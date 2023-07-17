@@ -606,86 +606,72 @@ current directory. (See also [`example`](@ref) for an example folder).
     # starts the file watcher
     start(fw)
 
-    # HTTP uses LoggingExtras and, in particular, a @logmsgv which is very
-    # annoying for LiveServer, see https://github.com/JuliaWeb/HTTP.jl/issues/938
-    # as a result we just capture all the logging and discard everything
-    Base.CoreLogging.with_logger(TestLogger()) do
-
-        # make request handler
-        req_handler = HTTP.Handlers.streamhandler() do req
-            req = preprocess_request(req)
-            serve_file(
-                fw, req;
-                inject_browser_reload_script = inject_browser_reload_script,
-                allow_cors = allow_cors
-            )
-        end
-    
-        server, port = get_server(host, port, req_handler)
-        host_str     = ifelse(host == string(Sockets.localhost), "localhost", host)
-        url          = "http://$host_str:$port"
-        println(
-            "✓ LiveServer listening on $url/ ...\n  (use CTRL+C to shut down)"
+    # make request handler
+    req_handler = HTTP.Handlers.streamhandler() do req
+        req = preprocess_request(req)
+        serve_file(
+            fw, req;
+            inject_browser_reload_script = inject_browser_reload_script,
+            allow_cors = allow_cors
         )
+    end
 
-        launch_browser && open_in_default_browser(url)
-        # wait until user interrupts the LiveServer (using CTRL+C).
-        try
-            counter = 1
-            while true
-                if WS_INTERRUPT[] || fw.status == :interrupted
-                    # rethrow the interruption (which may have happened during
-                    # the websocket handling or during the file watching)
-                    throw(InterruptException())
-                end
-                
-                sleep(2)
-                try
-                    sqrt(-1)
-                catch e
-                    HTTP.LoggingExtras.@logmsgv 1 HTTP.Logging.Error "I don't want to see this" exception=(e, stacktrace(catch_backtrace()))
-                end
-                
-                # run the auxiliary function if there is one (by default this does
-                # nothing)
-                coreloopfun(counter, fw)
-                # update the cycle counter and sleep (yields to other threads)
-                counter += 1
-                sleep(0.1)
+    server, port = get_server(host, port, req_handler)
+    host_str     = ifelse(host == string(Sockets.localhost), "localhost", host)
+    url          = "http://$host_str:$port"
+    println(
+        "✓ LiveServer listening on $url/ ...\n  (use CTRL+C to shut down)"
+    )
+
+    launch_browser && open_in_default_browser(url)
+    # wait until user interrupts the LiveServer (using CTRL+C).
+    try
+        counter = 1
+        while true
+            if WS_INTERRUPT[] || fw.status == :interrupted
+                # rethrow the interruption (which may have happened during
+                # the websocket handling or during the file watching)
+                throw(InterruptException())
             end
-        catch err
-            if !isa(err, InterruptException)
-                if VERBOSE[]
-                    @error "serve error" exception=(err, catch_backtrace())
-                end
-                throw(err)
+            # run the auxiliary function if there is one (by default this does
+            # nothing)
+            coreloopfun(counter, fw)
+            # update the cycle counter and sleep (yields to other threads)
+            counter += 1
+            sleep(0.1)
+        end
+    catch err
+        if !isa(err, InterruptException)
+            if VERBOSE[]
+                @error "serve error" exception=(err, catch_backtrace())
             end
-        finally
-            # cleanup: close everything that might still be alive
-            print("\n⋮ shutting down LiveServer… ")
-            # stop the filewatcher
-            stop(fw)
-            # close any remaining websockets
-            for wss ∈ values(WS_VIEWERS)
-                @sync for wsi in wss
-                    isopen(wsi.io) && @async begin
-                        try
-                            wsi.writeclosed = wsi.readclosed = true
-                            close(wsi.io)
-                        catch
-                        end
+            throw(err)
+        end
+    finally
+        # cleanup: close everything that might still be alive
+        print("\n⋮ shutting down LiveServer… ")
+        # stop the filewatcher
+        stop(fw)
+        # close any remaining websockets
+        for wss ∈ values(WS_VIEWERS)
+            @sync for wsi in wss
+                isopen(wsi.io) && @async begin
+                    try
+                        wsi.writeclosed = wsi.readclosed = true
+                        close(wsi.io)
+                    catch
                     end
                 end
             end
-            # empty the dictionary of viewers
-            empty!(WS_VIEWERS)
-            # shut down the server
-            HTTP.Servers.forceclose(server)
-            # reset other environment variables
-            reset_content_dir()
-            reset_ws_interrupt()
-            println("✓")
         end
+        # empty the dictionary of viewers
+        empty!(WS_VIEWERS)
+        # shut down the server
+        HTTP.Servers.forceclose(server)
+        # reset other environment variables
+        reset_content_dir()
+        reset_ws_interrupt()
+        println("✓")
     end
     return nothing
 end
