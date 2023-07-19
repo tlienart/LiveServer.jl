@@ -52,7 +52,9 @@ function update_and_close_viewers!(
     @sync for wsᵢ in ws_to_update_and_close
         isopen(wsᵢ.io) && @spawn begin
             try
-                HTTP.WebSockets.send(wsᵢ, "update")
+                redirect_stderr(devnull) do
+                    HTTP.WebSockets.send(wsᵢ, "update")
+                end
             catch
             end
         end
@@ -63,8 +65,10 @@ function update_and_close_viewers!(
     @sync for wsi in ws_to_update_and_close
         isopen(wsi.io) && @spawn begin
             try
-                wsi.writeclosed = wsi.readclosed = true
-                close(wsi.io)
+                redirect_stderr(devnull) do
+                    wsi.writeclosed = wsi.readclosed = true
+                    close(wsi.io)
+                end
             catch
             end
         end
@@ -694,15 +698,13 @@ function get_server(
     incr >= 10 && @error "couldn't find a free port in $incr tries"
     try
         server = HTTP.listen!(host, port; readtimeout=0, verbose=-1) do http::HTTP.Stream
-            redirect_stderr(devnull) do
-                if HTTP.WebSockets.isupgrade(http.message)
-                    # upgrade to websocket and add to list of viewers and keep open
-                    # until written to
-                    HTTP.WebSockets.upgrade(ws_tracker, http)
-                else
-                    # handle HTTP request
-                    return req_handler(http)
-                end
+            if HTTP.WebSockets.isupgrade(http.message)
+                # upgrade to websocket and add to list of viewers and keep open
+                # until written to
+                HTTP.WebSockets.upgrade(ws_tracker, http)
+            else
+                # handle HTTP request
+                return req_handler(http)
             end
         end
         return server, port
