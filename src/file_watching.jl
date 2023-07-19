@@ -157,7 +157,7 @@ is_running(fw::FileWatcher) = (fw.task !== nothing) && !istaskdone(fw.task)
 Start the file watcher and wait to make sure the task has started.
 """
 function start(fw::FileWatcher)
-    is_running(fw) || (fw.task = @async file_watcher_task!(fw))
+    is_running(fw) || (fw.task = @spawn file_watcher_task!(fw))
     # wait until task runs to ensure reliable start (e.g. if `stop` called
     # right after start)
     while fw.task.state != :runnable

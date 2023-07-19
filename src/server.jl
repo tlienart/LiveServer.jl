@@ -50,7 +50,7 @@ function update_and_close_viewers!(
 
     # send update message to all viewers
     @sync for wsᵢ in ws_to_update_and_close
-        isopen(wsᵢ.io) && @async begin
+        isopen(wsᵢ.io) && @spawn begin
             try
                 HTTP.WebSockets.send(wsᵢ, "update")
             catch
@@ -61,7 +61,7 @@ function update_and_close_viewers!(
     # force close all viewers (these will be replaced by 'fresh' ones
     # after the reload triggered by the update message)
     @sync for wsi in ws_to_update_and_close
-        isopen(wsi.io) && @async begin
+        isopen(wsi.io) && @spawn begin
             try
                 wsi.writeclosed = wsi.readclosed = true
                 close(wsi.io)
@@ -655,7 +655,7 @@ current directory. (See also [`example`](@ref) for an example folder).
         # close any remaining websockets
         for wss ∈ values(WS_VIEWERS)
             @sync for wsi in wss
-                isopen(wsi.io) && @async begin
+                isopen(wsi.io) && @spawn begin
                     try
                         wsi.writeclosed = wsi.readclosed = true
                         close(wsi.io)
@@ -693,7 +693,7 @@ function get_server(
 
     incr >= 10 && @error "couldn't find a free port in $incr tries"
     try
-        server = HTTP.listen!(host, port; readtimeout=0) do http::HTTP.Stream
+        server = HTTP.listen!(host, port; readtimeout=0, verbose=-1) do http::HTTP.Stream
             if HTTP.WebSockets.isupgrade(http.message)
                 # upgrade to websocket and add to list of viewers and keep open
                 # until written to

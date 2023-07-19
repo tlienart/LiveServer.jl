@@ -50,7 +50,7 @@ tasks that you will try to start.
 
     # define filewatcher outside so that can follow it
     fw = LS.SimpleWatcher(LS.file_changed_callback)
-    task = @async serve(fw; port=port)
+    task = @spawn serve(fw; port=port)
     sleep(0.1) # give it time to get started
 
     # there should be a callback associated with fw now
@@ -181,7 +181,7 @@ end
     fs_path, _ = LS.get_fs_path(s.message.target)
     @test fs_path == "test_file.html"
 
-    tsk = @async LS.HTTP.WebSockets.upgrade(LS.ws_tracker, s)
+    tsk = @spawn LS.HTTP.WebSockets.upgrade(LS.ws_tracker, s)
     sleep(1.0)
     # the websocket should have been added to the list
     @test LS.WS_VIEWERS[fs_path] isa Vector{HTTP.WebSockets.WebSocket}
@@ -210,7 +210,7 @@ end
         HTTP.Connection(io)
     )
 
-    tsk = @async LS.HTTP.WebSockets.upgrade(LS.ws_tracker, s)
+    tsk = @spawn LS.HTTP.WebSockets.upgrade(LS.ws_tracker, s)
     sleep(1.0)
 
     # simulate a "bad" closure

@@ -1,4 +1,5 @@
 using LiveServer, Test, Crayons, Sockets, HTTP
+using Base.Threads: @spawn
 const LS = LiveServer
 # depending on the OS, the resolution of stat(f).mtime can be over a second.
 const FS_WAIT = 1.1
