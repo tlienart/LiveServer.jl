@@ -52,9 +52,7 @@ function update_and_close_viewers!(
     @sync for wsᵢ in ws_to_update_and_close
         isopen(wsᵢ.io) && @spawn begin
             try
-                redirect_stderr(devnull) do
-                    HTTP.WebSockets.send(wsᵢ, "update")
-                end
+                HTTP.WebSockets.send(wsᵢ, "update")
             catch
             end
         end
@@ -65,10 +63,8 @@ function update_and_close_viewers!(
     @sync for wsi in ws_to_update_and_close
         isopen(wsi.io) && @spawn begin
             try
-                redirect_stderr(devnull) do
-                    wsi.writeclosed = wsi.readclosed = true
-                    close(wsi.io)
-                end
+                wsi.writeclosed = wsi.readclosed = true
+                close(wsi.io)
             catch
             end
         end
