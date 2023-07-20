@@ -653,9 +653,6 @@ current directory. (See also [`example`](@ref) for an example folder).
             sleep(0.1)
         end
     catch err
-
-        println("I'm here with $err")
-
         if !isa(err, InterruptException)
             if VERBOSE[]
                 @error "serve error" exception=(err, catch_backtrace())
