@@ -21,6 +21,28 @@ To install it in Julia ≥ 1.6, use the package manager with
 pkg> add LiveServer
 ```
 
+### Broken pipe message
+
+Infrequently, you _may_ see an error message in your console while using LiveServer that does not
+interrupt the server and does not otherwise affect your ability to see updates in the browser.
+This error message will look like
+
+```
+┌ LogLevel(1999): handle_connection handler error
+│   exception =
+│    IOError: write: broken pipe (EPIPE)
+```
+
+You can basically ignore this message, it's a problem with [HTTP.jl](https://github.com/JuliaWeb/HTTP.jl).
+
+If your application depends on LiveServer and you'd like to avoid having that kind of messages being shown to your users, you can consider using [LoggingExtras.jl](https://github.com/JuliaLogging/LoggingExtras.jl) which
+allows you to filter out messages based on their provenance. 
+
+We experimented with shipping LoggingExtras in LiveServer but ended up rolling that back as it made
+other applications less stable.
+
+
+
 ### Legacy notes
 
 For Julia `< 1.6`, you can use LiveServer's version 0.9.2:
