@@ -5,6 +5,7 @@ using Base.Filesystem
 using Base.Threads: @spawn
 
 using HTTP
+using LoggingExtras
 
 export serve, servedocs
 
