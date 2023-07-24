@@ -618,15 +618,6 @@ current directory. (See also [`example`](@ref) for an example folder).
         )
     end
 
-    old_logger = global_logger()
-    old_stderr = stderr
-    global_logger(
-        EarlyFilteredLogger(
-            log -> log._module !== HTTP.Servers,
-            global_logger()
-        )
-    )
-
     server, port = get_server(host, port, req_handler)
     host_str     = ifelse(host == string(Sockets.localhost), "localhost", host)
     url          = "http://$host_str:$port"
@@ -685,11 +676,6 @@ current directory. (See also [`example`](@ref) for an example folder).
         reset_ws_interrupt()
         println("✓")
     end
-    # given that LiveServer is interrupted via an InterruptException, we have
-    # to be extra careful that things are back as they were before, otherwise
-    # there's a high risk of the disgusting broken pipe error...
-    redirect_stderr(old_stderr)
-    global_logger(old_logger)
     return nothing
 end
 
