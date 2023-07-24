@@ -3,7 +3,6 @@ module LiveServer
 import Sockets, Pkg, MIMEs
 using Base.Filesystem
 using Base.Threads: @spawn
-using LoggingExtras
 
 using HTTP
 
