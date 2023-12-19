@@ -228,7 +228,7 @@ function servedocs(;
     if isempty(skip_dirs) && !isempty(skip_dir)
         skip_dirs = [skip_dir]
     end
-    push!(skip_dirs, joinpath("docs", "build"))
+    push!(skip_dirs, joinpath(foldername, buildfoldername))
     skip_dirs     = abspath.(skip_dirs)
     skip_files    = abspath.(skip_files)
     include_dirs  = abspath.(include_dirs)
