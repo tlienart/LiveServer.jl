@@ -49,7 +49,14 @@ function servedocs_callback!(
     end
 
     # Run a Documenter pass
-    Main.include(abspath(path2makejl))
+    try
+        Main.include(abspath(path2makejl))
+        dw.status = :runnable
+    catch ex
+        # If there was an error, record it so that an error is displayed to the user
+        dw.status = :documenter_jl_error
+    end
+
     file_changed_callback(fp)
     return
 end

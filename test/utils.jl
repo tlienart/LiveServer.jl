@@ -49,6 +49,16 @@
     @test length(dw.watchedfiles) == 2
     @test readmake() == 4
 
+    # Modify make.jl to force an error
+    write(makejl, "error()")
+    LS.servedocs_callback!(dw, joinpath("docs", "src", "index.md"), makejl, def...)
+    @test dw.status == :documenter_jl_error
+
+    # Fixing the error should reset the status
+    write(makejl, "42")
+    LS.servedocs_callback!(dw, joinpath("docs", "src", "index.md"), makejl, def...)
+    @test dw.status == :runnable
+
     cd(bk)
 end
 

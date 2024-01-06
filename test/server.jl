@@ -127,6 +127,22 @@ tasks that you will try to start.
     @test !sentinel1.io.io.writable
     @test !sentinel2.io.io.writable
 
+    # Mimic an error when building documentation with Documenter.jl. When this
+    # happens servedocs_callback!() will set the watcher status to
+    # :documenter_jl_error.
+    fw.status = :documenter_jl_error
+
+    # Now any requests should give us the custom error page
+    response = HTTP.get("http://localhost:$port/"; status_exception=false)
+    body_str = String(response.body)
+    @test response.status == 500
+    @test occursin("error occurred when rebuilding", body_str)
+    # And they should include the browser reload script so they automatically
+    # reload when the docs build again.
+    @test occursin(LS.BROWSER_RELOAD_SCRIPT, body_str)
+    # Reset the watcher status for the rest of the tests
+    fw.status = :runnable
+
     # if we remove the files, it shall stop following it
     rm("tmp.html")
     rm("css", recursive=true)
