@@ -572,7 +572,7 @@ current directory. (See also [`example`](@ref) for an example folder).
 - `filewatcher`: a file watcher implementing the API described for
         [`SimpleWatcher`](@ref) (which also is the default) messaging the viewers
         (via WebSockets) upon detecting file changes.
-- `port`: integer between 8000 (default) and 9000.
+- `port`: integer
 - `dir`: string specifying where to launch the server if not the current
         working directory.
 - `debug`: bolean switch to make the server print debug messages.
@@ -614,9 +614,6 @@ current directory. (See also [`example`](@ref) for an example folder).
             allow_cors::Bool = false
         )::Nothing
 
-    8000 ≤ port ≤ 9000 || throw(
-        ArgumentError("The port must be between 8000 and 9000.")
-    )
     set_verbose(verbose)
     set_debug(debug)
 
