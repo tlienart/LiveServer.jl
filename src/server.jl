@@ -349,9 +349,11 @@ function serve_file(
     ret_code = 200
     fs_path, case = get_fs_path(req.target)
 
-    if case == :not_found_without_404
-        html_404 = pagehtml(title = "404 Not Found") do io
-            write(io, """
+    # Fast paths to execute if building documentation isn't currently failing
+    if fw.status != :documenter_jl_error
+        if case == :not_found_without_404
+            html_404 = pagehtml(title = "404 Not Found") do io
+                write(io, """
                 <div style="width: 100%; max-width: 500px; margin: auto">
                 <h1 style="margin-top: 2em">404 Not Found</h1>
                 <p>
@@ -366,26 +368,48 @@ function serve_file(
                 </p>
                 </div>
                 """
-            )
+                      )
+            end
+            return HTTP.Response(404, html_404)
+        elseif case == :not_found_with_404
+            ret_code = 404
+        elseif case == :dir_without_index
+            index_page = get_dir_list(fs_path)
+            return HTTP.Response(200, index_page)
         end
-        return HTTP.Response(404, html_404)
-    elseif case == :not_found_with_404
-        ret_code = 404
-    elseif case == :dir_without_index
-        index_page = get_dir_list(fs_path)
-        return HTTP.Response(200, index_page)
     end
 
-    #
-    # In what follows, fs_path points to a file
-    # :dir_with_index
-    # :file
-    # :not_found_with_404
-    # --> html-like: try to inject reload-script
-    # --> other: just get the browser to show it
-    #
-    ext     = lstrip(last(splitext(fs_path)), '.') |> string
-    content = read(fs_path, String)
+    ext = nothing
+    content = nothing
+
+    # If building the documentation is failing we return a special error page,
+    # otherwise we just read the file from disk.
+    if fw.status == :documenter_jl_error
+        ret_code = 500
+        ext = "html"
+        content = pagehtml(title = "Documenter.jl error") do io
+            write(io, """
+                <div style="width: 100%; max-width: 500px; margin: auto">
+                <h1 style="margin-top: 2em">Error building docs</h1>
+                <p>
+                An error occurred when rebuilding the documentation, please check the <code>servedocs()</code> output.
+                </p>
+                </div>
+                """
+            )
+        end
+    else
+        #
+        # In what follows, fs_path points to a file
+        # :dir_with_index
+        # :file
+        # :not_found_with_404
+        # --> html-like: try to inject reload-script
+        # --> other: just get the browser to show it
+        #
+        ext     = lstrip(last(splitext(fs_path)), '.') |> string
+        content = read(fs_path, String)
+    end
 
     # build the response with appropriate mime type (this is inspired from Mux
     # https://github.com/JuliaWeb/Mux.jl/blob/master/src/examples/files.jl)
