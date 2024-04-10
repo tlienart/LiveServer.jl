@@ -209,7 +209,7 @@ doc environment or not (i.e. the `Project.toml` in `docs/`).
 * `makejl="make.jl"`: path of the script generating the documentation relative
                       to `foldername`.
 * `host="127.0.0.1"`: where the server will start.
-* `port=8000`: port number, an integer between 8000 (default) and 9000.
+* `port=8000`: port number.
 * `launch_browser=false`: specifies whether to launch a browser at the
                           localhost URL or not.
 """

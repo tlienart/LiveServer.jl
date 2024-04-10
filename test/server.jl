@@ -44,9 +44,6 @@ tasks that you will try to start.
     #
     # STEP 1: launching the listener
     #
-    # assert 8000 ≤ port ≦ 9000
-    @test_throws ArgumentError serve(port=7000)
-    @test_throws ArgumentError serve(port=10000)
 
     # define filewatcher outside so that can follow it
     fw = LS.SimpleWatcher(LS.file_changed_callback)
