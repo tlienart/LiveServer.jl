@@ -51,4 +51,9 @@ include("server.jl")
 
 include("utils.jl")
 
+# CLI invocation with -m (@main) requires Julia >= 1.11
+if isdefined(Base, Symbol("@main"))
+    include("main.jl")
+end
+
 end # module
