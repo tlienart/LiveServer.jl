@@ -80,6 +80,56 @@ Upon modifying a `.md` file (e.g. updating `docs/src/index.md`), the `make.jl` w
     subsequent passes only consider changes in the markdown (`.md`) files. This
     restriction is necessary to achieve a fast update behavior.
 
+### Tracking Changes in Package Docstrings
+
+# Issue with LiveServer not Updating Documenter Files after a Change in a Function's Docstring
+
+When using the LiveServer, if a developer makes a change to one of the documentation files of a package, those changes are instantly updated in the user's browser. 
+However, if changes are made to the docstring of a function within a package, then updates to the docstring do not trigger a corresponding update to the live preview of package documentation when using `servedocs`. 
+
+To resolve this issue, one can use the following procedure: 
+
+First, the user must add the [`Revise.jl`](https://github.com/timholy/Revise.jl) dependency to the `Project.toml` file
+of the `docs` environment in the package. The following code shows how
+to implement this change from the command line located in the root directory 
+of the package.
+
+```bash
+> julia --project=docs/
+> using Pkg
+> Pkg.add("Revise")
+```
+
+Second, in the `make.jl` file of the package `docs/` folder, the user needs to use 
+and activate the `Revise.jl` package at the top of the file. The following code shows how to implement
+this change in the file.
+
+```julia
+using Revise
+
+Revise.revise()
+
+#=
+
+... Rest of configuration within your make.jl file
+
+=#
+```
+
+3. Finally the user should start the `LiveServer` session with an additional 
+argument to watch the package `src/` folder for changes. This additional argument
+will force `LiveServer` to watch the `src/` folder for changes and re-render
+the documentation site once `LiveServer` notices a change.
+
+```julia
+using LiveServer
+servedocs(include_dirs=["src/"])
+```
+
+Once these change are completed, changes to
+a function's docstring will trigger a re-rendering of the documentation website
+in the user's browser.
+
 ### Additional keywords
 
 The `servedocs` function now takes extra keywords which may, in some cases, make your life easier:
