@@ -1,6 +1,6 @@
 module LiveServer
 
-import Sockets, Pkg, MIMEs
+import Sockets, MIMEs
 using Base.Filesystem
 using Base.Threads: @spawn
 

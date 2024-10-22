@@ -184,8 +184,6 @@ subfolder `docs`.
 
 * `verbose=false`: boolean switch to make the server print information about
                    file changes and connections.
-* `doc_env=false`: a boolean switch to make the server start by activating the
-                   doc environment or not (i.e. the `Project.toml` in `docs/`).
 * `literate=nothing`: see `literate_dir`.
 * `literate_dir=nothing`: Path to a directory containing Literate scripts if
                           these are not simply under `docs/src`. 
@@ -271,7 +269,12 @@ function servedocs(;
     )
 
     # activate the doc environment if required
-    doc_env && Pkg.activate(joinpath(foldername, "Project.toml"))
+    if doc_env
+        msg = "The `doc_env` keyword argument is deprecated. Configure the environment " *
+            "before calling LiveServer.servedocs instead."
+        Base.depwarn(msg, :servedocs)
+        prev = deprecated_activate(joinpath(foldername, "Project.toml"))
+    end
 
     # trigger a first pass of Documenter (& possibly Literate)
     Main.include(abspath(path2makejl))
@@ -291,8 +294,16 @@ function servedocs(;
     )
 
     # when the serve loop is interrupted, de-activate the environment
-    doc_env && Pkg.activate()
+    if doc_env
+        deprecated_activate(prev)
+    end
     return
+end
+
+function deprecated_activate(path)
+    prev = Base.ACTIVE_PROJECT[]
+    Base.ACTIVE_PROJECT[] = path
+    return prev
 end
 
 
