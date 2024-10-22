@@ -185,7 +185,7 @@ subfolder `docs`.
 * `verbose=false`: boolean switch to make the server print information about
                    file changes and connections.
 * `doc_env=false`: a boolean switch to make the server start by activating the
-doc environment or not (i.e. the `Project.toml` in `docs/`).
+                   doc environment or not (i.e. the `Project.toml` in `docs/`).
 * `literate=nothing`: see `literate_dir`.
 * `literate_dir=nothing`: Path to a directory containing Literate scripts if
                           these are not simply under `docs/src`. 
