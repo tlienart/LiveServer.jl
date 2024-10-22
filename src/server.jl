@@ -583,10 +583,12 @@ current directory. (See also [`example`](@ref) for an example folder).
         filewatcher. By default the coreloop does nothing.
 - `launch_browser`: boolean specifying whether to launch the ambient browser
         at the localhost or not (default: false).
-`allow_cors`: boolean allowing cross origin (CORS) requests to access the
+- `allow_cors`: boolean allowing cross origin (CORS) requests to access the
         server via the "Access-Control-Allow-Origin" header.
-`preprocess_request`: function specifying the transformation of a request
+- `preprocess_request`: function specifying the transformation of a request
         before it is returned; its only argument is the current request.
+- `inject_browser_reload_script`: boolean specifying whether the live-reloading
+        functionality should be injected into HTML pages when served.
 
 # Example
 
